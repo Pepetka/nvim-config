@@ -91,7 +91,7 @@ vim.o.formatexpr = "v:lua.require'conform'.formatexpr()"
 -- ═══════════════════════════════════════════════════════════════
 map({ "n", "v" }, "<leader>lf", function()
   conform.format({ async = true })
-end, map_opts("Conform: Format buffer"))
+end, map_opts("Edit: Format buffer"))
 
 -- ═══════════════════════════════════════════════════════════════
 --  User commands

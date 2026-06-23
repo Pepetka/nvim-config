@@ -112,7 +112,7 @@ vim.api.nvim_create_autocmd("ColorScheme", {
 --  Global keymaps
 -- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
-  return map_opts("Snacks: " .. desc)
+  return map_opts("General: " .. desc)
 end
 
 map("n", "<leader>nH", function()

@@ -231,7 +231,7 @@ noice.setup(config)
 --  Global keymaps
 -- ═══════════════════════════════════════════════════════════════
 local function opts(desc, params)
-  return map_opts("Noice: " .. desc, params)
+  return map_opts("General: " .. desc, params)
 end
 
 map("n", "<leader>nh", "<cmd>Noice history<cr>", opts("Open message history"))

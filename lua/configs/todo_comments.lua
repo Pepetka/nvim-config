@@ -74,8 +74,8 @@ todo.setup(config)
 --  Global keymaps
 -- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
-  return map_opts("Todo: " .. desc)
+  return map_opts("FZF: " .. desc)
 end
 
-map("n", "<leader>qf", "<Cmd>TodoFzfLua<CR>", opts("Find todos (fzf)"))
+map("n", "<leader>qf", "<Cmd>TodoFzfLua<CR>", opts("Find todos"))
 map("n", "<leader>qt", "<Cmd>Trouble todo toggle<CR>", opts("Find todos (Trouble)"))

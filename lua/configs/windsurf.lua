@@ -38,7 +38,7 @@ codeium.setup(config)
 --  Global keymaps
 -- ═══════════════════════════════════════════════════════════════
 local function opts(desc, extra)
-  return map_opts("Windsurf: " .. desc, extra)
+  return map_opts("AI: " .. desc, extra)
 end
 
 map("i", "<A-g>", function()

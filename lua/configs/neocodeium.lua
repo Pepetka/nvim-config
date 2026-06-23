@@ -34,7 +34,7 @@ neocodeium.setup(config)
 --  Global keymaps
 -- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
-  return map_opts("Neocodeium: " .. desc)
+  return map_opts("AI: " .. desc)
 end
 
 map("i", "<A-g>", neocodeium.accept, opts("Accept suggestion"))

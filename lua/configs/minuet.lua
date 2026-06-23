@@ -58,7 +58,7 @@ minuet.setup(config)
 --  Global keymaps
 -- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
-  return map_opts("Minuet: " .. desc)
+  return map_opts("AI: " .. desc)
 end
 
 map("i", "<A-g>", vt.accept, opts("Accept suggestion"))

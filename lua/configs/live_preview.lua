@@ -16,7 +16,7 @@ preview.set(config)
 --  Global keymaps
 -- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
-  return map_opts("Preview: " .. desc)
+  return map_opts("General: " .. desc)
 end
 
 map("n", "<leader>mp", "<Cmd>LivePreview start<CR>", opts("Start preview"))

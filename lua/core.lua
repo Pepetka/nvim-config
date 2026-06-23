@@ -14,7 +14,7 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set("n", "q", "<cmd>close<cr>", {
       buffer = args.buf,
       silent = true,
-      desc = "Close quickfix window",
+      desc = "General: Close quickfix window",
     })
   end,
 })

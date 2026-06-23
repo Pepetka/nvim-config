@@ -46,13 +46,13 @@ local config = {
   keymaps = {
     disable_defaults = false,
     view = {
-      { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Diffview: Close" } },
+      { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Git: Close diffview" } },
     },
     file_panel = {
-      { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Diffview: Close" } },
+      { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Git: Close diffview" } },
     },
     file_history_panel = {
-      { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Diffview: Close" } },
+      { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Git: Close diffview" } },
     },
   },
 }
@@ -63,7 +63,7 @@ diffview.setup(config)
 --  Global keymaps
 -- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
-  return map_opts("Diffview: " .. desc)
+  return map_opts("Git: " .. desc)
 end
 
-map("n", "<leader>go", "<cmd>DiffviewOpen<cr>", opts("Open"))
+map("n", "<leader>go", "<cmd>DiffviewOpen<cr>", opts("Open diffview"))

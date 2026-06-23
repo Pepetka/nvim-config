@@ -25,7 +25,7 @@ translate.setup(config)
 --  Global keymaps
 -- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
-  return map_opts("Translate: " .. desc)
+  return map_opts("General: " .. desc)
 end
 
 map({ "n", "x" }, "<leader>tE", "<Cmd>Translate EN<CR>", opts("To English (popup)"))

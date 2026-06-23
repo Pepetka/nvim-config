@@ -10,7 +10,7 @@ end
 --  Global keymaps
 -- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
-  return map_opts("Leap: " .. desc, { noremap = false })
+  return map_opts("Navigate: " .. desc, { noremap = false })
 end
 
 map({ "n", "x", "o" }, "s", "<Plug>(leap)", opts("Jump"))

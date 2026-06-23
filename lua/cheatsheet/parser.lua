@@ -84,52 +84,34 @@ function M.filter(mappings)
     local lhs = mapping.lhs
     local desc = utils.trim(mapping.desc or "")
 
-    if not lhs or lhs == "" then
-      goto continue
-    end
+    local skip = not lhs
+      or lhs == ""
+      or desc == ""
+      or (opts.exclude.no_desc and desc == "")
+      or (opts.exclude.newline and desc:find("\n"))
+      or (opts.exclude.single_word and utils.word_count(desc) < 2)
+      or lhs:find("<Plug>")
 
-    if desc == "" then
-      goto continue
-    end
-
-    if opts.exclude.no_desc and desc == "" then
-      goto continue
-    end
-
-    if opts.exclude.newline and desc:find("\n") then
-      goto continue
-    end
-
-    if opts.exclude.single_word and utils.word_count(desc) < 2 then
-      goto continue
-    end
-
-    if lhs:find("<Plug>") then
-      goto continue
-    end
-
-    local skip_by_pattern = false
-    for _, pattern in ipairs(opts.exclude.patterns or {}) do
-      if lhs:find(pattern) then
-        skip_by_pattern = true
-        break
+    if not skip then
+      for _, pattern in ipairs(opts.exclude.patterns or {}) do
+        if lhs:find(pattern) then
+          skip = true
+          break
+        end
       end
     end
-    if skip_by_pattern then
-      goto continue
+
+    if not skip then
+      lhs = utils.format_lhs(lhs)
+
+      ---@type CheatsheetMapping
+      local item = {
+        lhs = lhs,
+        desc = desc,
+        mode = mapping.mode,
+      }
+      table.insert(result, item)
     end
-
-    lhs = utils.format_lhs(lhs)
-
-    ---@type CheatsheetMapping
-    local item = {
-      lhs = lhs,
-      desc = desc,
-      mode = mapping.mode,
-    }
-    table.insert(result, item)
-
-    ::continue::
   end
 
   return result
@@ -164,31 +146,25 @@ function M.group(mappings)
       end
     end
 
-    if excluded_groups[group_name] then
-      goto continue
-    end
+    if not excluded_groups[group_name] then
+      local clean_desc = utils.capitalize(utils.trim(utils.remove_first_word(desc)))
 
-    local clean_desc = utils.remove_first_word(desc)
-    clean_desc = utils.capitalize(clean_desc)
-    clean_desc = utils.trim(clean_desc)
+      if not groups[group_name] then
+        groups[group_name] = {
+          name = group_name,
+          icon = icon,
+          mappings = {},
+        }
+      end
 
-    if not groups[group_name] then
-      groups[group_name] = {
-        name = group_name,
-        icon = icon,
-        mappings = {},
+      ---@type CheatsheetMapping
+      local group_mapping = {
+        lhs = mapping.lhs,
+        desc = clean_desc,
+        mode = mapping.mode,
       }
+      table.insert(groups[group_name].mappings, group_mapping)
     end
-
-    ---@type CheatsheetMapping
-    local group_mapping = {
-      lhs = mapping.lhs,
-      desc = clean_desc,
-      mode = mapping.mode,
-    }
-    table.insert(groups[group_name].mappings, group_mapping)
-
-    ::continue::
   end
 
   return groups
