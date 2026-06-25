@@ -4,7 +4,7 @@ add({
   "https://github.com/nvim-treesitter/nvim-treesitter",
   "https://github.com/mason-org/mason.nvim",
   "https://github.com/mason-org/mason-lspconfig.nvim",
-  { src = "https://github.com/saghen/blink.cmp", version = vim.version.range("^1") },
+  { src = "https://github.com/saghen/blink.cmp", version = vim.version.range("1.*") },
   "https://github.com/stevearc/conform.nvim",
   "https://github.com/mfussenegger/nvim-lint",
 })

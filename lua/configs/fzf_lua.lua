@@ -69,13 +69,7 @@ local config = {
       syntax_limit_l = 0,
       syntax_limit_b = 1024 * 1024,
       limit_b = 1024 * 1024 * 10,
-      extensions = {
-        ["png"] = { "chafa", "-f", "sixel" },
-        ["jpg"] = { "chafa", "-f", "sixel" },
-        ["jpeg"] = { "chafa", "-f", "sixel" },
-        ["gif"] = { "chafa", "-f", "sixel" },
-        ["webp"] = { "chafa", "-f", "sixel" },
-      },
+      snacks_image = { enabled = true, render_inline = true },
     },
   },
   files = {

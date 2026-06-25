@@ -15,7 +15,7 @@ local config = {
     css = { "prettierd" },
     scss = { "prettierd" },
     html = { "prettierd" },
-    json = { "prettierd" },
+    json = { "jq", "prettierd", stop_after_first = true },
     jsonc = { "prettierd" },
     yaml = { "prettierd" },
     markdown = { "prettierd" },

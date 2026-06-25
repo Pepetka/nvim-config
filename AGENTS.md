@@ -16,9 +16,13 @@ The config is built around a curated set of plugins for editing, navigation, LSP
 - **Statusline / Tabline:** `lualine.nvim` / `bufferline.nvim`
 - **Dashboard:** `dashboard-nvim`
 - **Colorscheme:** `tokyonight.nvim` (transparent)
+- **Notifications / Indent Guides / Input / Image Viewer:** `snacks.nvim`
 - **Formatter:** `conform.nvim`
 - **Linter:** `nvim-lint`
 - **Treesitter:** `nvim-treesitter` (custom fold expression)
+- **Text Objects:** `mini.ai`
+- **AI Completion:** `windsurf.nvim` (active); `minuet-ai.nvim` and `neocodeium` configs are present but disabled
+- **Undo Tree:** Built-in `nvim.undotree` (loaded via `packadd`)
 - **DAP:** `nvim-dap` + `nvim-dap-view` (JavaScript/TypeScript via `js-debug-adapter`)
 
 ## Directory Structure
@@ -44,13 +48,18 @@ The config is built around a curated set of plugins for editing, navigation, LSP
     ├── options.lua                # vim.opt / vim.g settings
     ├── mappings.lua               # Global keymaps
     ├── core.lua                   # Autocommands and user commands
+    ├── cheatsheet/                # Local cheatsheet plugin
+    │   ├── init.lua
+    │   ├── config.lua
+    │   ├── parser.lua
+    │   └── render.lua
     ├── plugins/
     │   ├── init.lua               # Loads plugin groups in order
     │   └── groups/                # Grouped plugin specs and their setup requires
     │       ├── shared.lua         # shared dependencies and colorscheme
-    │       ├── core.lua           # treesitter, LSP, completion, formatting, linting
+    │       ├── core.lua           # treesitter, mason, LSP, completion, formatting, linting
     │       ├── ui.lua             # statusline, tabline, dashboard, notifications, visuals
-    │       ├── workflow.lua       # navigation, editing, git, terminal, diagnostics, AI
+    │       ├── workflow.lua       # navigation, editing, git, terminal, diagnostics, AI, tab-scope buffers, debugging
     │       └── extras.lua         # optional utilities
     ├── configs/                   # Per-plugin setup modules
     │   ├── autotag.lua
@@ -58,6 +67,7 @@ The config is built around a curated set of plugins for editing, navigation, LSP
     │   ├── blink_cmp.lua
     │   ├── bqf.lua
     │   ├── bufferline.lua
+    │   ├── cheatsheet.lua
     │   ├── conform.lua
     │   ├── cursorword.lua
     │   ├── dap.lua
@@ -69,30 +79,33 @@ The config is built around a curated set of plugins for editing, navigation, LSP
     │   ├── highlight_colors.lua
     │   ├── hlslens.lua
     │   ├── import_cost.lua
-    │   ├── indent_blankline.lua
     │   ├── leap.lua
     │   ├── lint.lua
     │   ├── live_preview.lua
     │   ├── lsp.lua
     │   ├── lualine.lua
     │   ├── mason.lua
+    │   ├── mini_ai.lua
     │   ├── minuet.lua
     │   ├── neocodeium.lua
     │   ├── noice.lua
-    │   ├── notify.lua
     │   ├── npm_info.lua
     │   ├── pairs.lua
     │   ├── scope.lua
     │   ├── scrollbar.lua
+    │   ├── snacks.lua
     │   ├── surround.lua
     │   ├── theme.lua
+    │   ├── tiny_inline_diagnostic.lua
     │   ├── todo_comments.lua
     │   ├── toggleterm.lua
     │   ├── translate.lua
     │   ├── tree.lua
     │   ├── treesitter.lua
     │   ├── trouble.lua
-    │   └── ts_comments.lua
+    │   ├── ts_comments.lua
+    │   ├── undotree.lua
+    │   └── windsurf.lua
     └── utils/                     # Shared helper modules
         ├── colors.lua
         ├── dashboard.lua
@@ -120,10 +133,11 @@ Inside `lua/plugins/init.lua`, each plugin group under `lua/plugins/groups/` is 
 - **`nvim-pack-lock.json`** — Lockfile pinning exact git revisions for every plugin used by `vim.pack`.
 - **`lua/options.lua`** — Core vim options (numbers, tabs, UI, search, clipboard, etc.).
 - **`lua/mappings.lua`** — Global leader-key mappings (`<leader>` = space, `<localleader>` = `\`).
-- **`lua/core.lua`** — Autocommands (yank highlight, quickfix close, big-file detection) and the `:PackClean` command.
+- **`lua/core.lua`** — Autocommands (yank highlight, quickfix close, big-file detection, auto-create dirs, auto-reload, window auto-close) and the `:PackClean` / `:PackUpdate` commands.
 - **`lua/plugins/init.lua`** — Orchestrates plugin group loading.
 - **`lua/plugins/groups/*.lua`** — Grouped plugin specs (shared, core, workflow, ui, extras).
 - **`lsp/*.lua`** — LSP server configurations loaded via `vim.lsp.config()` in `lua/configs/lsp.lua`.
+- **`lua/cheatsheet/*.lua`** — Local cheatsheet plugin rendered by `configs.cheatsheet`.
 
 ## Build and Test Commands
 
@@ -131,8 +145,9 @@ This project has no build step, package manager, or test suite. However, when ed
 
 - **Format Lua files:** Run `stylua .` from the repository root.
 - **Check Lua syntax / types:** Use `lua-language-server` (configured in `lsp/lua_ls.lua`) with globals such as `vim` recognized.
-- **Reload configuration after changes:** From inside Neovim, run `:source %` (mapped to `<leader>so`) or restart Neovim (mapped to `<leader>re`).
+- **Reload configuration after changes:** From inside Neovim, run `:source %` (mapped to `<leader>rs`) or restart Neovim (mapped to `<leader>re`).
 - **Clean unused plugins:** Run `:PackClean` (defined in `lua/core.lua`). It removes plugins that are installed but not active in the current `vim.pack` spec.
+- **Update plugins:** Run `:PackUpdate` (with optional plugin names or `!` to force).
 
 ## Code Style Guidelines
 
@@ -172,11 +187,13 @@ Server-specific settings live in `lsp/<server>.lua` and are loaded in `lua/confi
 - Lua: `stylua`
 - Go: `goimports` / `gofmt`
 - Python: `ruff_format` / `black`
-- JS/TS/JSX/TSX/Svelte/CSS/SCSS/HTML/JSON/JSONC/YAML/Markdown: `prettierd` / `prettier`
-- Shell: `shfmt`
+- JS/TS/JSX/TSX/Svelte: `eslint_d` then `prettierd`
+- CSS/SCSS/HTML/YAML/Markdown: `prettierd`
+- JSON/JSONC: `jq` / `prettierd`
+- Shell (sh/bash/zsh): `shfmt`
 - Fallback: `trim_whitespace`
 
-Auto-format on save is enabled globally; disable it with `:FormatDisable` (or `:FormatDisable!` for the current buffer) and re-enable with `:FormatEnable`.
+`prettierd` / `prettier` are only run when a Prettier config file is found. Auto-format on save is enabled globally; disable it with `:FormatDisable` (or `:FormatDisable!` for the current buffer) and re-enable with `:FormatEnable`.
 
 ### Linting
 
@@ -192,19 +209,40 @@ Representative global mappings:
 - `<leader>ff` — find files (`fzf-lua`)
 - `<leader>fg` — live grep (`fzf-lua`)
 - `<leader>fb` — buffers (`fzf-lua`)
+- `<leader>fh` — help tags (`fzf-lua`)
+- `<leader>fr` — resume last picker (`fzf-lua`)
+- `<leader>fo` — recent files (`fzf-lua`)
+- `<leader>fk` — keymaps (`fzf-lua`)
 - `<leader>e` / `<C-n>` — open / toggle `nvim-tree`
-- `<leader>fm` — format buffer (`conform`)
-- `<leader>ca` — code action
+- `<leader>lf` — format buffer (`conform`)
+- `<leader>la` — code action
 - `gd`, `gD`, `grr`, `gri`, `grt` — LSP navigation
 - `]d` / `[d` — next / previous diagnostic
+- `<leader>id` — toggle inline diagnostics (`tiny-inline-diagnostic`)
+- `<leader>ic` — toggle cursor-only inline diagnostics
+- `<leader>ia` — toggle all diagnostics on cursor line
+- `<leader>ir` — reset inline diagnostic display options
 - `<leader>x` — close current buffer (scope-aware)
+- `<leader>cx` — close all buffers except current (scope-aware)
 - `<C-f>` — toggle floating terminal (`toggleterm`)
+- `<leader>ut` — toggle native undo tree (`nvim.undotree`)
+- `<leader>nH` — notification history (`snacks.nvim`)
+- `<leader>nD` — dismiss all notifications (`snacks.nvim`)
+- `<leader>mi` — preview image under cursor (`snacks.nvim`)
 - `<leader>mp` / `<leader>mP` — start / close live preview
 - `<leader>dc` — continue / start debugging (`nvim-dap`)
 - `<leader>db` / `<leader>dB` — toggle / conditional breakpoint (`nvim-dap`)
 - `<leader>do` / `<leader>di` / `<leader>dO` — step over / into / out (`nvim-dap`)
 - `<leader>dv` — toggle `nvim-dap-view`
 - `<leader>dw` — add expression to watches (`nvim-dap-view`)
+
+Insert-mode AI mappings for `windsurf.nvim`:
+
+- `<A-g>` — accept suggestion
+- `<A-w>` — accept next word
+- `<A-l>` — accept next line
+- `<A-j>` / `<A-k>` — cycle suggestions
+- `<A-c>` — clear suggestion
 
 Each plugin's buffer-local or global mappings are defined in its `lua/configs/*.lua` module.
 
@@ -230,12 +268,13 @@ There are no automated tests in this repository. To verify changes:
 - When adding a new plugin, add it to the appropriate group file under `lua/plugins/groups/`:
   - `shared.lua` — shared libraries (plenary, web-devicons, nui, friendly-snippets) and the colorscheme (`tokyonight`).
   - `core.lua` — essential editor tooling (treesitter, mason, LSP, completion, formatting, linting).
-  - `workflow.lua` — navigation, editing enhancements, git, terminal, diagnostics, AI, tab-scope buffers, and debugging (DAP).
-  - `ui.lua` — visual/status UI (statusline, tabline, dashboard, notifications, indent guides, scrollbar).
-  - `extras.lua` — optional utilities (translate, live preview, npm-info, import-cost).
+  - `workflow.lua` — navigation, editing enhancements (leap, mini.ai, mini.pairs, surround, autotag, ts-comments, better-escape), git, terminal, diagnostics, AI (`windsurf.nvim`; `minuet`/`neocodeium` configs are commented out), tab-scope buffers, and debugging (DAP).
+  - `ui.lua` — visual/status UI (statusline, tabline, dashboard, noice, scrollbar, highlight-colors, snacks for notifications/indent/input/image, and the local cheatsheet).
+  - `extras.lua` — optional utilities (translate, live preview, npm-info, import-cost, native undotree via `packadd`).
   Then create a matching `lua/configs/<plugin>.lua` module and require it in that same group file.
+- For a local plugin like `lua/cheatsheet/`, place the module under `lua/`, add a thin `lua/configs/cheatsheet.lua` loader, and require it from `ui.lua`.
 - When adding a new LSP server, add a `lsp/<server>.lua` config file and add the server name to `ensure_installed` in `lua/configs/mason.lua` if it is managed by Mason.
 - Use `require("utils.map_opts")` for every new keymap and include a concise description.
-- Shared helpers (colors, padding, dashboard utilities, etc.) live under `lua/utils/`; reuse them instead of duplicating logic.
+- Shared helpers (colors, padding, dashboard utilities, scope buffer helpers, etc.) live under `lua/utils/`; reuse them instead of duplicating logic.
 - Run `stylua .` before committing Lua changes.
 - This is a live user configuration: test changes inside Neovim rather than relying on external test runners.

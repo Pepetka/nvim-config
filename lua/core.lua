@@ -46,6 +46,7 @@ vim.api.nvim_create_autocmd("BufReadPost", {
     vim.b[buf].bigfile = true
     vim.b[buf].minianimate_disable = true
     vim.b[buf].completion = false
+    vim.b[buf].spell = false
 
     vim.api.nvim_create_autocmd("LspAttach", {
       buffer = buf,
@@ -150,3 +151,11 @@ vim.api.nvim_create_user_command("PackClean", function()
 
   vim.pack.del(to_delete, { force = true })
 end, { desc = "Remove unused vim.pack plugins" })
+
+vim.api.nvim_create_user_command("PackUpdate", function(opts)
+  local names = {}
+  if opts.args and opts.args ~= "" then
+    names = vim.split(opts.args, "%s+")
+  end
+  vim.pack.update(#names > 0 and names or nil, { force = opts.bang, offline = false })
+end, { desc = "Update vim.pack plugins", nargs = "*", bang = true })

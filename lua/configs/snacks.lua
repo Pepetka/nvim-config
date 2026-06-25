@@ -71,6 +71,50 @@ local config = {
     level = vim.log.levels.TRACE,
   },
 
+  image = {
+    enabled = true,
+    force = false,
+    formats = {
+      "png",
+      "jpg",
+      "jpeg",
+      "gif",
+      "bmp",
+      "webp",
+      "tiff",
+      "heic",
+      "avif",
+      "mp4",
+      "mov",
+      "avi",
+      "mkv",
+      "webm",
+      "pdf",
+      "icns",
+      "svg",
+    },
+    doc = {
+      enabled = true,
+      inline = true,
+      float = true,
+      max_width = 80,
+      max_height = 40,
+      conceal = function(lang, type)
+        return type == "math"
+      end,
+    },
+    img_dirs = { "img", "images", "assets", "static", "public", "media", "attachments" },
+    convert = {
+      notify = false,
+      magick = {
+        default = { "{src}[0]", "-scale", "1920x1080>" },
+        vector = { "-density", 192, "{src}[{page}]" },
+        math = { "-density", 192, "{src}[{page}]", "-trim" },
+        pdf = { "-density", 192, "{src}[{page}]", "-background", "white", "-alpha", "remove", "-trim" },
+      },
+    },
+  },
+
   styles = {
     notification = {
       border = "rounded",
@@ -118,6 +162,10 @@ end
 map("n", "<leader>nH", function()
   snacks.notifier.show_history()
 end, opts("Notification history"))
+
+map("n", "<leader>mi", function()
+  snacks.image.hover()
+end, opts("Preview image under cursor"))
 
 map("n", "<leader>nD", function()
   snacks.notifier.hide()

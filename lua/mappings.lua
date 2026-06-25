@@ -64,6 +64,25 @@ map("n", "<leader>rs", "<cmd>source %<cr>", map_opts("General: Source current fi
 -- ═══════════════════════════════════════════════════════════════
 map("n", "<leader>un", "<cmd>set nu!<CR>", map_opts("General: Toggle line numbers"))
 map("n", "<leader>ur", "<cmd>set rnu!<CR>", map_opts("General: Toggle relative numbers"))
+map("n", "<leader>us", "<cmd>set spell!<cr>", map_opts("Toggle: Spell check"))
+
+local function toggle_wrap()
+  if vim.o.wrap then
+    vim.opt.wrap = false
+    vim.opt.linebreak = true
+    pcall(vim.keymap.del, "n", "j")
+    pcall(vim.keymap.del, "n", "k")
+    vim.notify("Wrap disabled", vim.log.levels.INFO)
+  else
+    vim.opt.wrap = true
+    vim.opt.linebreak = true
+    map("n", "j", "gj", map_opts("Navigate: Move down by visual line"))
+    map("n", "k", "gk", map_opts("Navigate: Move up by visual line"))
+    vim.notify("Wrap enabled", vim.log.levels.INFO)
+  end
+end
+
+map("n", "<leader>uw", toggle_wrap, map_opts("General: Toggle word wrap"))
 
 -- ═══════════════════════════════════════════════════════════════
 --  Folds

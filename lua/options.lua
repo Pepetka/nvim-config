@@ -29,6 +29,7 @@ opt.jumpoptions = "view" -- Preserve scroll position when jumping between locati
 opt.whichwrap:append("<>[]hl") -- Allow h/l and arrows to cross line boundaries
 
 opt.wrap = false -- Wrap lines that exceed window width
+opt.showbreak = "↪ " -- Character to show at the start of wrapped lines
 opt.linebreak = true -- Wrap lines at word boundaries, not mid-word
 opt.smoothscroll = true -- Smooth scrolling for wrapped lines (Neovim 0.10+)
 opt.synmaxcol = 500 -- Stop syntax highlighting after column 500 (performance)
@@ -110,6 +111,9 @@ opt.diffopt:append("linematch:40") -- Smarter inline diff alignment (Neovim 0.11
 opt.conceallevel = 2 -- Hide markdown markup, links, etc. in supported filetypes
 
 opt.modeline = false -- Ignore vim: directives in files (security hardening)
+
+vim.opt.spell = true -- Enable spell checking
+vim.opt.spelllang = "en_us,ru_ru" -- Spellcheck languages
 
 g.loaded_node_provider = 0
 g.loaded_python3_provider = 0

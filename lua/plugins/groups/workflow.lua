@@ -9,10 +9,12 @@ add({
   "https://github.com/dlyongemallo/diffview-plus.nvim",
   "https://github.com/akinsho/toggleterm.nvim",
   "https://github.com/folke/trouble.nvim",
+  "https://github.com/rachartier/tiny-inline-diagnostic.nvim",
   "https://github.com/kevinhwang91/nvim-bqf",
   "https://github.com/kevinhwang91/nvim-hlslens",
   "https://github.com/folke/todo-comments.nvim",
   "https://github.com/max397574/better-escape.nvim",
+  "https://github.com/nvim-mini/mini.ai",
   "https://github.com/nvim-mini/mini.pairs",
   "https://github.com/kylechui/nvim-surround",
   "https://github.com/windwp/nvim-ts-autotag",
@@ -33,6 +35,7 @@ require("configs.gitsigns")
 require("configs.diffview")
 require("configs.toggleterm")
 require("configs.trouble")
+require("configs.tiny_inline_diagnostic")
 require("configs.bqf")
 require("configs.hlslens")
 require("configs.todo_comments")
@@ -42,6 +45,7 @@ require("configs.surround")
 require("configs.autotag")
 require("configs.ts_comments")
 require("configs.cursorword")
+require("configs.mini_ai")
 -- require("configs.minuet")
 -- require("configs.neocodeium")
 require("configs.windsurf")

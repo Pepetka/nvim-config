@@ -35,6 +35,13 @@ local config = {
         text_align = "left",
         separator = true,
       },
+      {
+        filetype = "nvim-undotree",
+        text = "Undo tree",
+        highlight = "Directory",
+        text_align = "left",
+        separator = true,
+      },
     },
     color_icons = true,
     show_buffer_icons = true,
