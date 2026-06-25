@@ -2,17 +2,17 @@ local merge_tables = require("utils.merge_tables")
 local lualine = require("lualine")
 
 local colors = {
-  bg = "none",
-  fg = "#cad3f5",
-  yellow = "#eed49f",
-  cyan = "#91d7e3",
-  darkblue = "#333853",
-  green = "#a6da95",
-  orange = "#f5a97f",
-  violet = "#b7bdf8",
-  magenta = "#f5bde6",
-  blue = "#8aadf4",
-  red = "#ed8796",
+  bg = "#222436",
+  fg = "#c8d3f5",
+  yellow = "#ffc777",
+  cyan = "#86e1fc",
+  darkblue = "#2f334d",
+  green = "#c3e88d",
+  orange = "#ff966c",
+  violet = "#c099ff",
+  magenta = "#fca7ea",
+  blue = "#82aaff",
+  red = "#ff757f",
   transparent = "none",
 }
 

@@ -112,7 +112,7 @@ opt.conceallevel = 2 -- Hide markdown markup, links, etc. in supported filetypes
 
 opt.modeline = false -- Ignore vim: directives in files (security hardening)
 
-vim.opt.spell = true -- Enable spell checking
+vim.opt.spell = false -- Enable spell checking
 vim.opt.spelllang = "en_us,ru_ru" -- Spellcheck languages
 
 g.loaded_node_provider = 0
