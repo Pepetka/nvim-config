@@ -1,31 +1,71 @@
-local ok, tokyonight = pcall(require, "tokyonight.colors")
-local palette = ok and tokyonight.setup() or {}
+local M = {}
 
----Semantic color aliases for use across the config.
----Swapping the colorscheme only requires updating this file.
-local colors = {
-  fg = palette.fg or "#c0caf5",
-  bg = palette.bg or "#1a1b26",
-  bg_visual = palette.bg_visual or "#283457",
+local palette_cache = { style = nil, palette = nil }
 
-  error = palette.red or "#ff757f",
-  warning = palette.yellow or "#ffc777",
-  info = palette.blue or "#82aaff",
-  success = palette.green or "#c3e88d",
+local function get_palette()
+  local ok_tn, tokyonight = pcall(require, "tokyonight")
+  if not ok_tn then
+    return {}
+  end
 
-  muted = palette.comment or "#636da6",
-  subtle = palette.dark3 or "#545c7e",
-  surface = palette.bg_highlight or "#2f334d",
-  gutter = palette.fg_gutter or "#3b4261",
+  -- tokyonight.load() records the active style per background.
+  -- Use that instead of the configured default style so light/day is returned
+  -- when the user switches to a light background.
+  local style = tokyonight.styles and tokyonight.styles[vim.o.background]
+    or (vim.o.background == "light" and "day" or "moon")
 
-  accent = palette.cyan or "#86e1fc",
-  focus = palette.blue or "#82aaff",
+  if palette_cache.style == style then
+    return palette_cache.palette
+  end
 
-  alert = palette.orange or "#ff9e64",
-  special = palette.magenta or "#bb9af7",
-  experimental = palette.magenta2 or "#ff007c",
+  local ok_colors, colors_mod = pcall(require, "tokyonight.colors")
+  if not ok_colors then
+    return {}
+  end
 
-  -- Raw theme palette for special cases.
-  palette = palette,
-}
-return colors
+  local palette = colors_mod.setup({ style = style })
+  palette_cache.style = style
+  palette_cache.palette = palette
+  return palette
+end
+
+setmetatable(M, {
+  __index = function(_, key)
+    local palette = get_palette()
+    if not palette then
+      return nil
+    end
+
+    if key == "palette" then
+      return palette
+    end
+
+    -- Semantic aliases. Keep this list small and meaningful.
+    -- For raw tokyonight colors use colors.palette.<name>.
+    local aliases = {
+      fg = palette.fg,
+      bg = palette.bg,
+      bg_visual = palette.bg_visual,
+
+      error = palette.error,
+      warning = palette.warning,
+      info = palette.info,
+      success = palette.green,
+
+      muted = palette.comment,
+      subtle = palette.dark3,
+      surface = palette.bg_highlight,
+      gutter = palette.fg_gutter,
+
+      accent = palette.cyan,
+      focus = palette.blue,
+      alert = palette.orange,
+      special = palette.magenta,
+      test = palette.magenta2,
+    }
+
+    return aliases[key]
+  end,
+})
+
+return M

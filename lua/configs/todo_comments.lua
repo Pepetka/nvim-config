@@ -1,32 +1,51 @@
 local todo = require("todo-comments")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
-local theme_colors = require("utils.colors")
+local theme_highlights = require("utils.theme_highlights")
 
-local colors = {
-  FIX = theme_colors.error,
-  TODO = theme_colors.focus,
-  HACK = theme_colors.warning,
-  WARN = theme_colors.alert,
-  PERF = theme_colors.special,
-  NOTE = theme_colors.success,
-  TEST = theme_colors.experimental,
-  REVIEW = theme_colors.accent,
-}
+local function set_todo_highlights()
+  local c = require("utils.colors")
+  local groups = {
+    TodoColorError = { fg = c.error },
+    TodoColorWarning = { fg = c.warning },
+    TodoColorAlert = { fg = c.alert },
+    TodoColorFocus = { fg = c.focus },
+    TodoColorSpecial = { fg = c.special },
+    TodoColorSuccess = { fg = c.success },
+    TodoColorAccent = { fg = c.accent },
+    TodoColorTest = { fg = c.test },
+    TodoColorDefault = { fg = c.fg },
+  }
+  for name, opts in pairs(groups) do
+    vim.api.nvim_set_hl(0, name, opts)
+  end
+end
 
 local config = {
   signs = true,
   sign_priority = 8,
 
   keywords = {
-    FIX = { icon = " ", color = colors.FIX, alt = { "FIXME", "BUG", "FIXIT", "ISSUE" } },
-    TODO = { icon = " ", color = colors.TODO },
-    HACK = { icon = " ", color = colors.HACK },
-    WARN = { icon = " ", color = colors.WARN, alt = { "WARNING", "XXX" } },
-    PERF = { icon = " ", color = colors.PERF, alt = { "OPTIM", "PERFORMANCE", "OPTIMIZE" } },
-    NOTE = { icon = " ", color = colors.NOTE, alt = { "INFO" } },
-    TEST = { icon = "⏲ ", color = colors.TEST, alt = { "TESTING", "PASSED", "FAILED" } },
-    REVIEW = { icon = " ", color = colors.REVIEW },
+    FIX = { icon = " ", color = "error", alt = { "FIXME", "BUG", "FIXIT", "ISSUE" } },
+    TODO = { icon = " ", color = "focus" },
+    HACK = { icon = " ", color = "warning" },
+    WARN = { icon = " ", color = "alert", alt = { "WARNING", "XXX" } },
+    PERF = { icon = " ", color = "special", alt = { "OPTIM", "PERFORMANCE", "OPTIMIZE" } },
+    NOTE = { icon = " ", color = "success", alt = { "INFO" } },
+    TEST = { icon = "⏲ ", color = "test", alt = { "TESTING", "PASSED", "FAILED" } },
+    REVIEW = { icon = " ", color = "accent" },
+  },
+
+  colors = {
+    error = { "TodoColorError" },
+    warning = { "TodoColorWarning" },
+    alert = { "TodoColorAlert" },
+    focus = { "TodoColorFocus" },
+    special = { "TodoColorSpecial" },
+    success = { "TodoColorSuccess" },
+    accent = { "TodoColorAccent" },
+    test = { "TodoColorTest" },
+    default = { "TodoColorDefault" },
   },
 
   gui_style = {
@@ -68,7 +87,10 @@ local config = {
     pattern = [[\b(KEYWORDS):]],
   },
 }
+
+set_todo_highlights()
 todo.setup(config)
+theme_highlights.register("todo_comments", set_todo_highlights)
 
 -- ═══════════════════════════════════════════════════════════════
 --  Global keymaps
@@ -79,3 +101,7 @@ end
 
 map("n", "<leader>qf", "<Cmd>TodoFzfLua<CR>", opts("Find todos"))
 map("n", "<leader>qt", "<Cmd>Trouble todo toggle<CR>", opts("Find todos (Trouble)"))
+
+return {
+  set_highlights = set_todo_highlights,
+}

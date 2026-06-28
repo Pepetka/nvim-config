@@ -1,5 +1,20 @@
 local scrollbar = require("scrollbar")
-local colors = require("utils.colors")
+local theme_highlights = require("utils.theme_highlights")
+
+local function set_scrollbar_highlights()
+  local c = require("utils.colors")
+  vim.api.nvim_set_hl(0, "ScrollbarHandleSource", { bg = c.muted })
+  vim.api.nvim_set_hl(0, "ScrollbarCursorSource", { fg = c.accent })
+  vim.api.nvim_set_hl(0, "ScrollbarSearchSource", { fg = c.warning })
+  vim.api.nvim_set_hl(0, "ScrollbarErrorSource", { fg = c.error })
+  vim.api.nvim_set_hl(0, "ScrollbarWarnSource", { fg = c.warning })
+  vim.api.nvim_set_hl(0, "ScrollbarInfoSource", { fg = c.info })
+  vim.api.nvim_set_hl(0, "ScrollbarHintSource", { fg = c.palette.hint })
+  vim.api.nvim_set_hl(0, "ScrollbarMiscSource", { fg = c.palette.purple })
+  vim.api.nvim_set_hl(0, "ScrollbarGitAddSource", { fg = c.success })
+  vim.api.nvim_set_hl(0, "ScrollbarGitChangeSource", { fg = c.warning })
+  vim.api.nvim_set_hl(0, "ScrollbarGitDeleteSource", { fg = c.error })
+end
 
 local config = {
   show = true,
@@ -11,22 +26,21 @@ local config = {
   throttle_ms = 100,
   handle = {
     text = " ",
-    color = colors.surface,
     blend = 30,
-    highlight = "CursorColumn",
+    highlight = "ScrollbarHandleSource",
     hide_if_all_visible = true,
   },
   marks = {
-    Cursor = { text = "•", color = colors.accent },
-    Search = { text = { "-", "=" }, color = colors.warning },
-    Error = { text = { "-", "=" }, color = colors.error },
-    Warn = { text = { "-", "=" }, color = colors.warning },
-    Info = { text = { "-", "=" }, color = colors.info },
-    Hint = { text = { "-", "=" }, color = colors.palette.hint },
-    Misc = { text = { "-", "=" }, color = colors.palette.purple },
-    GitAdd = { text = "┆", color = colors.success },
-    GitChange = { text = "┆", color = colors.warning },
-    GitDelete = { text = "▁", color = colors.error },
+    Cursor = { text = "•", highlight = "ScrollbarCursorSource" },
+    Search = { text = { "-", "=" }, highlight = "ScrollbarSearchSource" },
+    Error = { text = { "-", "=" }, highlight = "ScrollbarErrorSource" },
+    Warn = { text = { "-", "=" }, highlight = "ScrollbarWarnSource" },
+    Info = { text = { "-", "=" }, highlight = "ScrollbarInfoSource" },
+    Hint = { text = { "-", "=" }, highlight = "ScrollbarHintSource" },
+    Misc = { text = { "-", "=" }, highlight = "ScrollbarMiscSource" },
+    GitAdd = { text = "┆", highlight = "ScrollbarGitAddSource" },
+    GitChange = { text = "┆", highlight = "ScrollbarGitChangeSource" },
+    GitDelete = { text = "▁", highlight = "ScrollbarGitDeleteSource" },
   },
   excluded_filetypes = {
     "prompt",
@@ -43,4 +57,11 @@ local config = {
     ale = false,
   },
 }
+
+set_scrollbar_highlights()
 scrollbar.setup(config)
+theme_highlights.register("scrollbar", set_scrollbar_highlights)
+
+return {
+  set_highlights = set_scrollbar_highlights,
+}
