@@ -1,6 +1,6 @@
 # Project Overview
 
-This repository is a personal Neovim configuration written in Lua. It is intended to be used as the Neovim configuration directory, typically located at `~/.config/nvim` or `~/.config/nvim-new`. The configuration targets modern Neovim (0.10+) and uses the built-in `vim.pack` plugin manager introduced in Neovim 0.11, with a locked plugin manifest stored in `nvim-pack-lock.json`.
+This repository is a personal Neovim configuration written in Lua. It is intended to be used as the Neovim configuration directory, typically located at `~/.config/nvim`. The configuration targets modern Neovim (0.10+) and uses the built-in `vim.pack` plugin manager introduced in Neovim 0.11, with a locked plugin manifest stored in `nvim-pack-lock.json`.
 
 The config is built around a curated set of plugins for editing, navigation, LSP, formatting, linting, git integration, fuzzy finding, and AI-assisted completion. It is not a plugin itself and has no traditional build, package, or deployment step. The runtime environment is Neovim; all code is loaded when Neovim starts.
 
@@ -112,7 +112,8 @@ The config is built around a curated set of plugins for editing, navigation, LSP
         ├── map_opts.lua
         ├── merge_tables.lua
         ├── pad.lua
-        └── scope_buffers.lua
+        ├── scope_buffers.lua
+        └── theme_highlights.lua
 ```
 
 ## Load Order
@@ -276,5 +277,6 @@ There are no automated tests in this repository. To verify changes:
 - When adding a new LSP server, add a `lsp/<server>.lua` config file and add the server name to `ensure_installed` in `lua/configs/mason.lua` if it is managed by Mason.
 - Use `require("utils.map_opts")` for every new keymap and include a concise description.
 - Shared helpers (colors, padding, dashboard utilities, scope buffer helpers, etc.) live under `lua/utils/`; reuse them instead of duplicating logic.
+- If a plugin caches colors from `require("utils.colors")` at setup time, register a highlight-refresh callback in `require("utils.theme_highlights")` so the plugin stays in sync with `ColorScheme` events. See `configs/scrollbar.lua`, `configs/cursorword.lua`, and `configs/todo_comments.lua` for examples.
 - Run `stylua .` before committing Lua changes.
 - This is a live user configuration: test changes inside Neovim rather than relying on external test runners.
