@@ -24,6 +24,9 @@ local config = {
       vertical = "down:45%",
       horizontal = "right:60%",
       delay = 100,
+      winopts = {
+        number = false,
+      },
     },
   },
   fzf_opts = {
