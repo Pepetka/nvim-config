@@ -43,6 +43,7 @@ The config is built around a curated set of plugins for editing, navigation, LSP
 │   ├── prismals.lua
 │   ├── svelte.lua
 │   ├── tailwindcss.lua
+│   ├── tsgo.lua
 │   └── vtsls.lua
 └── lua/
     ├── options.lua                # vim.opt / vim.g settings
@@ -156,7 +157,6 @@ This project has no build step, package manager, or test suite. However, when ed
 - **Indentation:** 2 spaces; no tabs (`expandtab`).
 - **Line width:** 120 columns.
 - **Quotes:** `AutoPreferDouble`; use double quotes unless the string requires them.
-- **Comments:** Section headers use Unicode box-drawing comments (`-- ═══════════════════════`). Inline comments are written in English.
 - **Naming:** Modules under `lua/configs/` are snake_case. Utility modules under `lua/utils/` are also snake_case. LSP configs are named after the server.
 - **Keymap options:** Always use `require("utils.map_opts")` so every keymap gets a description and sensible defaults (`noremap = true`, `silent = true`).
 - **Type annotations:** The codebase uses LuaCATS annotations (`---@param`, `---@return`, `---@class`) where helpful.
@@ -167,7 +167,8 @@ This project has no build step, package manager, or test suite. However, when ed
 
 `mason-lspconfig` ensures the following servers are installed and automatically enables them:
 
-- `vtsls` — TypeScript / JavaScript
+- `vtsls` — TypeScript / JavaScript (default)
+- `tsgo` — TypeScript / JavaScript (experimental native preview; switch via `vim.g.ts_lsp`)
 - `gopls` — Go
 - `html` — HTML
 - `cssls` — CSS / SCSS / Less
@@ -178,6 +179,8 @@ This project has no build step, package manager, or test suite. However, when ed
 - `tailwindcss` — Tailwind CSS
 - `cssmodules_ls` — CSS Modules
 - `css_variables` — CSS Variables
+
+The active TypeScript server is controlled by `vim.g.ts_lsp` in `lua/options.lua`. Set it to `"tsgo"` to test the native preview, or `"vtsls"` to keep the stable server. Only one of the two is installed and enabled at a time.
 
 Server-specific settings live in `lsp/<server>.lua` and are loaded in `lua/configs/lsp.lua` with `vim.lsp.config(server_name, require("lsp." .. server_name))`. Global capabilities are extended by `blink.cmp`.
 
