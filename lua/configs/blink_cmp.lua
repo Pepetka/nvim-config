@@ -1,6 +1,6 @@
 local blink = require("blink.cmp")
 
-local config = {
+blink.setup({
   keymap = {
     preset = "none",
     ["<C-j>"] = { "select_next", "fallback" },
@@ -70,7 +70,14 @@ local config = {
   },
 
   sources = {
-    default = { "lsp", "path", "snippets", "buffer" },
+    default = { "lazydev", "lsp", "path", "snippets", "buffer" },
+    providers = {
+      lazydev = {
+        name = "LazyDev",
+        module = "lazydev.integrations.blink",
+        score_offset = 100,
+      },
+    },
   },
 
   signature = {
@@ -105,5 +112,4 @@ local config = {
   fuzzy = {
     implementation = "prefer_rust_with_warning",
   },
-}
-blink.setup(config)
+})

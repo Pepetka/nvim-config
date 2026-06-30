@@ -6,6 +6,8 @@ add({
   "https://github.com/MunifTanjim/nui.nvim",
   "https://github.com/rafamadriz/friendly-snippets",
   "https://github.com/folke/tokyonight.nvim",
+  "https://github.com/folke/lazydev.nvim",
 })
 
+require("configs.lazydev")
 require("configs.theme")

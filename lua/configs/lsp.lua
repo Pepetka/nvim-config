@@ -1,9 +1,6 @@
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
--- ═══════════════════════════════════════════════════════════════
---  Global LSP capabilities & on_init
--- ═══════════════════════════════════════════════════════════════
 local capabilities = require("blink.cmp").get_lsp_capabilities(vim.lsp.protocol.make_client_capabilities())
 
 vim.lsp.config("*", {
@@ -15,9 +12,6 @@ vim.lsp.config("*", {
   end,
 })
 
--- ═══════════════════════════════════════════════════════════════
---  Diagnostics appearance
--- ═══════════════════════════════════════════════════════════════
 vim.diagnostic.config({
   virtual_text = {
     prefix = "",
@@ -42,9 +36,6 @@ vim.diagnostic.config({
   },
 })
 
--- ═══════════════════════════════════════════════════════════════
---  Buffer-local LSP keymaps
--- ═══════════════════════════════════════════════════════════════
 vim.api.nvim_create_autocmd("LspAttach", {
   group = vim.api.nvim_create_augroup("UserLspConfig", { clear = true }),
   callback = function(args)
