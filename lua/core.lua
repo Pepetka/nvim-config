@@ -159,3 +159,63 @@ vim.api.nvim_create_user_command("PackUpdate", function(opts)
   end
   vim.pack.update(#names > 0 and names or nil, { force = opts.bang, offline = false })
 end, { desc = "Update vim.pack plugins", nargs = "*", bang = true })
+
+-- ═══════════════════════════════════════════════════════════════
+--  LSP commands
+-- ═══════════════════════════════════════════════════════════════
+local function get_clients_by_name(name)
+  local clients = vim.lsp.get_clients()
+  if not name or name == "" then
+    return clients
+  end
+  return vim.tbl_filter(function(client)
+    return client.name == name
+  end, clients)
+end
+
+vim.api.nvim_create_user_command("LspRestart", function(opts)
+  local name = opts.args ~= "" and opts.args or nil
+  local clients = get_clients_by_name(name)
+  if #clients == 0 then
+    vim.notify("No LSP clients to restart" .. (name and " (" .. name .. ")" or ""), vim.log.levels.WARN)
+    return
+  end
+  for _, client in ipairs(clients) do
+    client:stop(true)
+    vim.lsp.enable(client.name, true)
+  end
+  vim.notify("LSP restarted" .. (name and " (" .. name .. ")" or ""), vim.log.levels.INFO)
+end, { desc = "Restart LSP client(s)", nargs = "?", complete = "shellcmd" })
+
+vim.api.nvim_create_user_command("LspStop", function(opts)
+  local name = opts.args ~= "" and opts.args or nil
+  local clients = get_clients_by_name(name)
+  if #clients == 0 then
+    vim.notify("No LSP clients to stop" .. (name and " (" .. name .. ")" or ""), vim.log.levels.WARN)
+    return
+  end
+  for _, client in ipairs(clients) do
+    client:stop()
+  end
+  vim.notify("LSP stopped" .. (name and " (" .. name .. ")" or ""), vim.log.levels.INFO)
+end, { desc = "Stop LSP client(s)", nargs = "?", complete = "shellcmd" })
+
+vim.api.nvim_create_user_command("LspStart", function(opts)
+  local name = opts.args ~= "" and opts.args or nil
+  if not name then
+    vim.notify("LSP server name required", vim.log.levels.WARN)
+    return
+  end
+  vim.lsp.enable(name, true)
+  vim.notify("LSP started (" .. name .. ")", vim.log.levels.INFO)
+end, { desc = "Start LSP server", nargs = "?" })
+
+vim.api.nvim_create_user_command("TsLspSwitch", function()
+  local current = vim.g.ts_lsp or "vtsls"
+  local next_lsp = current == "vtsls" and "tsgo" or "vtsls"
+  vim.g.ts_lsp = next_lsp
+
+  vim.lsp.enable(current, false)
+  vim.lsp.enable(next_lsp, true)
+  vim.notify("Switched TypeScript LSP to " .. next_lsp, vim.log.levels.INFO)
+end, { desc = "Switch between vtsls and tsgo" })

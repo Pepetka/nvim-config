@@ -58,6 +58,7 @@ map("n", "<S-Tab>", "<cmd>bprevious<cr>", map_opts("Buffer: Previous buffer"))
 -- ═══════════════════════════════════════════════════════════════
 map("n", "<leader>re", "<cmd>restart<cr>", map_opts("General: Restart Neovim"))
 map("n", "<leader>rs", "<cmd>source %<cr>", map_opts("General: Source current file"))
+map("n", "<leader>lT", "<cmd>TsLspSwitch<cr>", map_opts("LSP: Switch TypeScript server"))
 
 -- ═══════════════════════════════════════════════════════════════
 --  Toggle options
