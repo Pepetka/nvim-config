@@ -1,5 +1,6 @@
 local nvimtree = require("nvim-tree")
 local nvimtree_api = require("nvim-tree.api")
+local nvimtree_map = require("nvim-tree.api").map
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
@@ -7,9 +8,6 @@ local function opts(desc, bufnr)
   return map_opts("Tree: " .. desc, { buffer = bufnr })
 end
 
--- ═══════════════════════════════════════════════════════════════
---  Autocmds
--- ═══════════════════════════════════════════════════════════════
 vim.api.nvim_create_autocmd("QuitPre", {
   desc = "Close nvim-tree window before quitting nvim",
   callback = function()
@@ -37,9 +35,6 @@ nvimtree_api.events.subscribe("FileCreated", function(file)
   vim.cmd("edit " .. vim.fn.fnameescape(file.fname))
 end)
 
--- ═══════════════════════════════════════════════════════════════
---  Buffer-local keymaps
--- ═══════════════════════════════════════════════════════════════
 local function multi_operations(bufnr)
   local mark_move_j = function()
     nvimtree_api.marks.toggle()
@@ -151,10 +146,13 @@ local function multi_operations(bufnr)
 end
 
 local function vim_like_navigation(bufnr)
-  nvimtree_api.config.mappings.default_on_attach(bufnr)
+  nvimtree_map.on_attach.default(bufnr)
 
   local function edit_or_open()
     local node = nvimtree_api.tree.get_node_under_cursor()
+    if not node then
+      return
+    end
     nvimtree_api.node.open.edit()
     if node.nodes == nil then
       nvimtree_api.tree.close()
@@ -177,10 +175,7 @@ local function on_attach(bufnr)
   multi_operations(bufnr)
 end
 
--- ═══════════════════════════════════════════════════════════════
---  Plugin config
--- ═══════════════════════════════════════════════════════════════
-local config = {
+nvimtree.setup({
   disable_netrw = true,
   hijack_netrw = true,
   hijack_cursor = true,
@@ -188,7 +183,10 @@ local config = {
   prefer_startup_root = false,
   update_focused_file = {
     enable = true,
-    update_root = false,
+    update_root = {
+      enable = false,
+      ignore_list = {},
+    },
   },
   sort = {
     sorter = "case_sensitive",
@@ -268,12 +266,8 @@ local config = {
     },
   },
   on_attach = on_attach,
-}
-nvimtree.setup(config)
+})
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 map("n", "<leader>e", function()
   nvimtree_api.tree.open({ focus = true })
 end, opts("Open file tree"))

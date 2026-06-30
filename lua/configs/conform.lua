@@ -2,7 +2,7 @@ local conform = require("conform")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
-local config = {
+conform.setup({
   formatters_by_ft = {
     lua = { "stylua" },
     go = { "goimports", "gofmt", stop_after_first = true },
@@ -55,7 +55,7 @@ local config = {
           "prettier.config.js",
           "prettier.config.cjs",
           "prettier.config.mjs",
-        }, { path = ctx.filename, upward = true })[1]
+        }, { path = ctx.filename, upward = true })[1] ~= nil
       end,
     },
     prettier = {
@@ -71,7 +71,7 @@ local config = {
           "prettier.config.js",
           "prettier.config.cjs",
           "prettier.config.mjs",
-        }, { path = ctx.filename, upward = true })[1]
+        }, { path = ctx.filename, upward = true })[1] ~= nil
       end,
     },
     shfmt = {
@@ -81,21 +81,14 @@ local config = {
 
   notify_on_error = true,
   notify_no_formatters = false,
-}
-conform.setup(config)
+})
 
 vim.o.formatexpr = "v:lua.require'conform'.formatexpr()"
 
--- ═══════════════════════════════════════════════════════════════
---  Keymaps
--- ═══════════════════════════════════════════════════════════════
 map({ "n", "v" }, "<leader>lf", function()
   conform.format({ async = true })
 end, map_opts("Edit: Format buffer"))
 
--- ═══════════════════════════════════════════════════════════════
---  User commands
--- ═══════════════════════════════════════════════════════════════
 vim.api.nvim_create_user_command("FormatDisable", function(opts)
   if opts.bang then
     vim.b.disable_autoformat = true

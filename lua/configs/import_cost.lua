@@ -1,4 +1,11 @@
-local config = {
+---@class ImportCostConfig
+---@field package_manager string
+---@field filetypes string[]
+---@field format table
+---@field highlight string
+
+---@type ImportCostConfig
+vim.g.import_cost = {
   package_manager = "npm",
   filetypes = {
     "javascript",
@@ -14,12 +21,12 @@ local config = {
   },
   highlight = "Comment",
 }
-vim.g.import_cost = config
 
 -- Fix race condition: import-cost may try to set extmark in a buffer that no longer exists.
 local job = require("import-cost.job")
 local orig_render_extmark = job.render_extmark
 
+---@diagnostic disable-next-line: duplicate-set-field
 job.render_extmark = function(bufnr, data, extmark_id)
   if not vim.api.nvim_buf_is_valid(bufnr) then
     return 0

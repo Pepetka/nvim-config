@@ -1,7 +1,7 @@
 local gitsigns = require("gitsigns")
 local map_opts = require("utils.map_opts")
 
-local config = {
+gitsigns.setup({
   signs = {
     add = { text = "┃" },
     change = { text = "┃" },
@@ -93,7 +93,6 @@ local config = {
 
     map("n", "<leader>hS", gitsigns.stage_buffer, opts("Stage buffer"))
     map("n", "<leader>hR", gitsigns.reset_buffer, opts("Reset buffer"))
-    map("n", "<leader>hu", gitsigns.undo_stage_hunk, opts("Undo stage hunk"))
 
     map("n", "<leader>hp", gitsigns.preview_hunk, opts("Preview hunk"))
     map("n", "<leader>hb", function()
@@ -108,5 +107,4 @@ local config = {
 
     map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", opts("Select hunk"))
   end,
-}
-gitsigns.setup(config)
+})

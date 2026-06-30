@@ -2,7 +2,7 @@ local mini_ai = require("mini.ai")
 
 local gen_spec = mini_ai.gen_spec
 
-local config = {
+mini_ai.setup({
   n_lines = 50,
   search_method = "cover_or_next",
   mappings = {
@@ -28,6 +28,4 @@ local config = {
       }
     end,
   },
-}
-
-mini_ai.setup(config)
+})

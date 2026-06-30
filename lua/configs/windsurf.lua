@@ -3,7 +3,7 @@ local vt = require("codeium.virtual_text")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
-local config = {
+codeium.setup({
   config_path = vim.fn.expand("~/.codeium/config.json"),
   enable_cmp_source = false,
   enable_chat = false,
@@ -31,12 +31,8 @@ local config = {
   workspace_root = {
     use_lsp = true,
   },
-}
-codeium.setup(config)
+})
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc, extra)
   return map_opts("AI: " .. desc, extra)
 end
@@ -54,12 +50,8 @@ map("i", "<A-l>", function()
 end, opts("Accept line", { expr = true, script = true, nowait = true }))
 
 map("i", "<A-j>", function()
-  return vt.cycle_or_complete(1)
+  return vt.cycle_or_complete()
 end, opts("Next / complete", { expr = true }))
-
-map("i", "<A-k>", function()
-  return vt.cycle_or_complete(-1)
-end, opts("Previous suggestion", { expr = true }))
 
 map("i", "<A-c>", function()
   return vt.clear()

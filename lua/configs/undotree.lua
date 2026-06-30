@@ -32,16 +32,16 @@ local excluded_filetypes = {
   "dap-view",
 }
 
----@param opts table?
+---@param user_opts table?
 ---@return nil
-function M.open(opts)
+function M.open(user_opts)
   local ft = vim.bo.filetype
   if vim.tbl_contains(excluded_filetypes, ft) then
     vim.notify("Undotree is disabled in " .. ft .. " buffers", vim.log.levels.WARN)
     return
   end
-  opts = vim.tbl_deep_extend("force", default_opts, opts or {})
-  return require("undotree").open(opts)
+  local open_opts = vim.tbl_deep_extend("force", default_opts, user_opts or {})
+  return require("undotree").open(open_opts)
 end
 
 ---@return boolean
@@ -55,12 +55,12 @@ function M.close()
   return false
 end
 
----@param opts table?
+---@param user_opts table?
 ---@return nil
-function M.toggle(opts)
+function M.toggle(user_opts)
   local closed = M.close()
   if not closed then
-    M.open(opts)
+    M.open(user_opts)
   end
 end
 

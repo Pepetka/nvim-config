@@ -30,6 +30,7 @@ function M.setup()
     t = { bg = colors.palette.blue, fg = colors.surface },
   }
 
+  ---@return { fg: string, bg: string }
   local function mode_style()
     return mode_colors[vim.fn.mode()] or { bg = colors.palette.cyan, fg = colors.surface }
   end
@@ -76,6 +77,7 @@ function M.setup()
     extensions = { "nvim-tree", "mason", "lazy", "quickfix" },
   }
 
+  ---@type table<string, fun(): boolean>
   local conditions = {
     buffer_editable = function()
       return vim.bo.buftype == ""
@@ -102,6 +104,8 @@ function M.setup()
     end,
   }
 
+  ---@param ... fun(): boolean
+  ---@return fun(): boolean
   local function all(...)
     local fns = { ... }
     return function()
@@ -114,14 +118,18 @@ function M.setup()
     end
   end
 
+  ---@param component table
   local function ins_left(component)
     table.insert(config.sections.lualine_c, component)
   end
 
+  ---@param component table
   local function ins_right(component)
     table.insert(config.sections.lualine_x, component)
   end
 
+  ---@param right boolean
+  ---@param cond? fun(): boolean
   local function space(right, cond)
     local ins = right and ins_right or ins_left
     ins({
@@ -134,6 +142,9 @@ function M.setup()
     })
   end
 
+  ---@param component table
+  ---@param icon_block table
+  ---@param opts? { left?: boolean, right?: boolean }
   local function ins_left_capsule(component, icon_block, opts)
     if opts and opts.left then
       space(false, component.cond)
@@ -216,7 +227,7 @@ function M.setup()
         return "No LSP"
       end
 
-      local preferred = { "svelte-language-server", "vtsls" }
+      local preferred = { "svelte-language-server", "vtsls", "tsgo" }
       local function supports(client)
         local filetypes = client.config and client.config.filetypes
         return filetypes and vim.tbl_contains(filetypes, buf_ft)
@@ -257,9 +268,11 @@ function M.setup()
 
   ins_right({
     function()
+      ---@diagnostic disable-next-line: undefined-field
       return require("noice").api.status.mode.get()
     end,
     cond = function()
+      ---@diagnostic disable-next-line: undefined-field
       return conditions.width_gt_80() and package.loaded.noice and require("noice").api.status.mode.has()
     end,
     color = { fg = colors.surface, bg = colors.palette.yellow },
@@ -267,15 +280,18 @@ function M.setup()
     padding = { left = 1, right = 1 },
   })
   space(true, function()
+    ---@diagnostic disable-next-line: undefined-field
     return conditions.width_gt_80() and package.loaded.noice and require("noice").api.status.mode.has()
   end)
 
   ins_right({
     function()
+      ---@diagnostic disable-next-line: undefined-field
       local search = require("noice").api.status.search.get()
       return search:match("%[[^%]]+%]") or search
     end,
     cond = function()
+      ---@diagnostic disable-next-line: undefined-field
       return conditions.width_gt_80() and package.loaded.noice and require("noice").api.status.search.has()
     end,
     color = { fg = colors.surface, bg = colors.palette.cyan },
@@ -283,6 +299,7 @@ function M.setup()
     padding = { left = 0, right = 0 },
   })
   space(true, function()
+    ---@diagnostic disable-next-line: undefined-field
     return conditions.width_gt_80() and package.loaded.noice and require("noice").api.status.search.has()
   end)
 
