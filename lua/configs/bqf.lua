@@ -1,6 +1,6 @@
 local bqf = require("bqf")
 
-local config = {
+bqf.setup({
   auto_enable = true,
   magic_window = true,
   auto_resize_height = true,
@@ -34,5 +34,4 @@ local config = {
     pscrolldown = "<C-f>",
     fzffilter = "zf",
   },
-}
-bqf.setup(config)
+})

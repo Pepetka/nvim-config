@@ -16,7 +16,8 @@ local function set_scrollbar_highlights()
   vim.api.nvim_set_hl(0, "ScrollbarGitDeleteSource", { fg = c.error })
 end
 
-local config = {
+set_scrollbar_highlights()
+scrollbar.setup({
   show = true,
   show_in_active_only = false,
   set_highlights = true,
@@ -56,10 +57,7 @@ local config = {
     search = true,
     ale = false,
   },
-}
-
-set_scrollbar_highlights()
-scrollbar.setup(config)
+})
 theme_highlights.register("scrollbar", set_scrollbar_highlights)
 
 return {

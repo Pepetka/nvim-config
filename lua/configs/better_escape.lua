@@ -1,6 +1,6 @@
 local better_escape = require("better_escape")
 
-local config = {
+better_escape.setup({
   timeout = 200,
   mappings = {
     i = {
@@ -20,5 +20,4 @@ local config = {
       j = { k = "<Esc>" },
     },
   },
-}
-better_escape.setup(config)
+})

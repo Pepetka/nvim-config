@@ -2,7 +2,7 @@ local translate = require("translate")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
-local config = {
+translate.setup({
   default = {
     command = "google",
     output = "floating",
@@ -18,12 +18,8 @@ local config = {
     },
   },
   silent = true,
-}
-translate.setup(config)
+})
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("General: " .. desc)
 end

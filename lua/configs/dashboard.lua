@@ -29,7 +29,7 @@ local center = {
 }
 local footer = dashboard_utils.footer
 
-local config = {
+dashboard.setup({
   theme = "doom",
   hide = {
     statusline = true,
@@ -42,8 +42,7 @@ local config = {
     footer = footer,
     vertical_center = true,
   },
-}
-dashboard.setup(config)
+})
 setup_highlights()
 
 vim.api.nvim_create_autocmd("ColorScheme", {

@@ -2,7 +2,7 @@ local neocodeium = require("neocodeium")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
-local config = {
+neocodeium.setup({
   enabled = true,
   debounce = true,
   max_lines = 10000,
@@ -27,12 +27,8 @@ local config = {
     local name = vim.api.nvim_buf_get_name(bufnr)
     return not vim.endswith(name, ".env")
   end,
-}
-neocodeium.setup(config)
+})
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("AI: " .. desc)
 end

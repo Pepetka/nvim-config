@@ -2,7 +2,7 @@ local npm_info = require("npm-info")
 local core = require("npm-info.core")
 local cfg = require("npm-info.config")
 
-local config = {
+npm_info.setup({
   show_installed = false,
   icons = {
     current = "󰏖",
@@ -18,8 +18,7 @@ local config = {
     beta = "DiagnosticWarn",
     unstable = "NpmBeta",
   },
-}
-npm_info.setup(config)
+})
 
 -- The default autocmd runs npm commands from Neovim's cwd, so inner
 -- package.json files in a monorepo get no results. Replace it with an

@@ -2,7 +2,7 @@ local diffview = require("diffview")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
-local config = {
+diffview.setup({
   use_icons = true,
   watch_index = true,
 
@@ -55,13 +55,8 @@ local config = {
       { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Git: Close diffview" } },
     },
   },
-}
+})
 
-diffview.setup(config)
-
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("Git: " .. desc)
 end

@@ -31,7 +31,7 @@ local function set_indent_hl()
   vim.api.nvim_set_hl(0, "SnacksIndentScope", { fg = colors.focus, bold = true })
 end
 
-local config = {
+snacks.setup({
   indent = {
     indent = {
       char = "│",
@@ -125,8 +125,7 @@ local config = {
       height = 0.5,
     },
   },
-}
-snacks.setup(config)
+})
 
 local durations = {
   [vim.log.levels.ERROR] = 10000,
@@ -152,9 +151,6 @@ vim.api.nvim_create_autocmd("ColorScheme", {
   callback = set_indent_hl,
 })
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("General: " .. desc)
 end

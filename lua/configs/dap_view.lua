@@ -2,7 +2,7 @@ local dv = require("dap-view")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
-local config = {
+dv.setup({
   winbar = {
     show = true,
     sections = { "watches", "scopes", "exceptions", "breakpoints", "threads", "repl", "console" },
@@ -24,12 +24,8 @@ local config = {
   auto_toggle = true,
   follow_tab = false,
   switchbuf = "usetab,uselast",
-}
-dv.setup(config)
+})
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("DAP: " .. desc, { noremap = false })
 end

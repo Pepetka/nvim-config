@@ -2,7 +2,7 @@ local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 local noice = require("noice")
 
-local config = {
+noice.setup({
   cmdline = {
     enabled = true,
     view = "cmdline_popup",
@@ -224,8 +224,7 @@ local config = {
       size = "50%",
     },
   },
-}
-noice.setup(config)
+})
 
 -- ═══════════════════════════════════════════════════════════════
 --  Global keymaps

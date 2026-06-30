@@ -1,6 +1,6 @@
 local autotag = require("nvim-ts-autotag")
 
-local config = {
+autotag.setup({
   opts = {
     enable_close = true,
     enable_rename = true,
@@ -12,5 +12,4 @@ local config = {
       enable_rename = false,
     },
   },
-}
-autotag.setup(config)
+})

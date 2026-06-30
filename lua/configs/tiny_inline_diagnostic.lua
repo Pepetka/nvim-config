@@ -2,7 +2,7 @@ local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 local diagnostic = require("tiny-inline-diagnostic")
 
-local config = {
+diagnostic.setup({
   preset = "modern",
   transparent_cursorline = true,
 
@@ -43,14 +43,10 @@ local config = {
       priority = 2048,
     },
   },
-}
-diagnostic.setup(config)
+})
 
 vim.diagnostic.config({ virtual_text = false })
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("Inline diagnostic: " .. desc)
 end

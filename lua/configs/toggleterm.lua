@@ -1,6 +1,6 @@
 local toggleterm = require("toggleterm")
 
-local config = {
+toggleterm.setup({
   direction = "float",
   open_mapping = [[<c-f>]],
   start_in_insert = true,
@@ -17,5 +17,4 @@ local config = {
       return math.floor(vim.o.lines * 0.5)
     end,
   },
-}
-toggleterm.setup(config)
+})

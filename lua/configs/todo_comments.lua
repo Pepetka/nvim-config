@@ -21,7 +21,8 @@ local function set_todo_highlights()
   end
 end
 
-local config = {
+set_todo_highlights()
+todo.setup({
   signs = true,
   sign_priority = 8,
 
@@ -86,10 +87,7 @@ local config = {
     },
     pattern = [[\b(KEYWORDS):]],
   },
-}
-
-set_todo_highlights()
-todo.setup(config)
+})
 theme_highlights.register("todo_comments", set_todo_highlights)
 
 -- ═══════════════════════════════════════════════════════════════

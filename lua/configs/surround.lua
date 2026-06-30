@@ -1,6 +1,6 @@
 local surround = require("nvim-surround")
 
-local config = {
+surround.setup({
   highlight = { duration = 500 },
 
   move_cursor = "begin",
@@ -32,5 +32,4 @@ local config = {
       label = "console.log(…)",
     },
   },
-}
-surround.setup(config)
+})

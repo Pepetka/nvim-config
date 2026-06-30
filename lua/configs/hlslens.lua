@@ -1,6 +1,5 @@
 local hlslens = require("hlslens")
 
-local config = {
+hlslens.setup({
   override_lens = function() end,
-}
-hlslens.setup(config)
+})

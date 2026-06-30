@@ -2,7 +2,7 @@ local trouble = require("trouble")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
-local config = {
+trouble.setup({
   auto_close = false,
   auto_open = false,
   auto_preview = true,
@@ -46,12 +46,8 @@ local config = {
     p = "preview",
     P = "toggle_preview",
   },
-}
-trouble.setup(config)
+})
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("Trouble: " .. desc)
 end

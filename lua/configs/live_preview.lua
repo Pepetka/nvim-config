@@ -2,19 +2,15 @@ local preview = require("livepreview.config")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
-local config = {
+preview.set({
   port = 5500,
   browser = "default",
   dynamic_root = false,
   sync_scroll = false,
   picker = "fzf-lua",
   address = "127.0.0.1",
-}
-preview.set(config)
+})
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("General: " .. desc)
 end

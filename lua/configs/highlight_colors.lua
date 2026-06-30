@@ -1,6 +1,6 @@
 local highlight_colors = require("nvim-highlight-colors")
 
-local config = {
+highlight_colors.setup({
   render = "background",
 
   virtual_symbol = "■",
@@ -37,5 +37,4 @@ local config = {
   exclude_buffer = function(bufnr)
     return vim.fn.getfsize(vim.api.nvim_buf_get_name(bufnr)) > 1000000
   end,
-}
-highlight_colors.setup(config)
+})

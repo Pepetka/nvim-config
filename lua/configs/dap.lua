@@ -33,6 +33,7 @@ local js_filetypes = {
   "svelte",
 }
 
+---@type dap.Configuration[]
 local js_configs = {
   -- Launch the current file directly with node.
   {
@@ -112,9 +113,6 @@ dap.listeners.before.event_exited.dapview_config = function()
   require("dap-view").close()
 end
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("DAP: " .. desc, { noremap = false })
 end

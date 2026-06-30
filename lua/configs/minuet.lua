@@ -3,7 +3,7 @@ local vt = require("minuet.virtualtext").action
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
-local config = {
+minuet.setup({
   provider = "openai_fim_compatible",
 
   context_window = 2048,
@@ -51,12 +51,8 @@ local config = {
       dismiss = nil,
     },
   },
-}
-minuet.setup(config)
+})
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("AI: " .. desc)
 end

@@ -1,6 +1,6 @@
 local bufferline = require("bufferline")
 
-local config = {
+bufferline.setup({
   highlights = {
     fill = { bg = "none" },
     background = { bg = "none" },
@@ -62,5 +62,4 @@ local config = {
       return true
     end,
   },
-}
-bufferline.setup(config)
+})

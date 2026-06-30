@@ -1,6 +1,6 @@
 local ts_comments = require("ts-comments")
 
-local config = {
+ts_comments.setup({
   commentstring = true,
   lang = {
     astro = "<!-- %s -->",
@@ -52,5 +52,4 @@ local config = {
     twig = "{# %s #}",
     php = "// %s",
   },
-}
-ts_comments.setup(config)
+})

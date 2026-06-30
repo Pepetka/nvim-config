@@ -9,7 +9,7 @@ vim.api.nvim_create_autocmd("BufEnter", {
   callback = buffer_utils.cleanup_empty_buffers,
 })
 
-local config = {
+scope.setup({
   restore_state = true,
   hooks = {
     pre_tab_close = function()
@@ -22,12 +22,8 @@ local config = {
       vim.cmd("redrawtabline")
     end,
   },
-}
-scope.setup(config)
+})
 
--- ═══════════════════════════════════════════════════════════════
---  Global keymaps
--- ═══════════════════════════════════════════════════════════════
 local function opts(desc)
   return map_opts("Buffer: " .. desc)
 end

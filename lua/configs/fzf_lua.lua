@@ -3,7 +3,7 @@ local actions = require("fzf-lua.actions")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
-local config = {
+fzf.setup({
   { "fzf-native", "hide" },
   winopts = {
     height = 0.85,
@@ -17,8 +17,8 @@ local config = {
     preview = {
       default = "builtin",
       border = "border",
-      wrap = "nowrap",
-      hidden = "nohidden",
+      wrap = true,
+      hidden = false,
       layout = "flex",
       flip_columns = 120,
       vertical = "down:45%",
@@ -181,8 +181,7 @@ local config = {
     async_or_timeout = 5000,
     previewer = "codeaction",
   },
-}
-fzf.setup(config)
+})
 
 fzf.register_ui_select(function(opts, items)
   local min_h, max_h = 0.15, 0.70
