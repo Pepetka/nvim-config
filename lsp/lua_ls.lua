@@ -1,4 +1,5 @@
-local config = {
+---@type vim.lsp.Config
+return {
   cmd = { "lua-language-server" },
   filetypes = { "lua" },
   root_markers = {
@@ -20,10 +21,6 @@ local config = {
         disable = { "missing-fields" },
       },
       workspace = {
-        library = {
-          vim.env.VIMRUNTIME,
-          vim.fn.stdpath("config"),
-        },
         checkThirdParty = "Disable",
       },
       completion = {
@@ -36,5 +33,3 @@ local config = {
     },
   },
 }
-
-return config

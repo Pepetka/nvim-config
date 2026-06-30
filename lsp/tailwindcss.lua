@@ -1,4 +1,5 @@
-local config = {
+---@type vim.lsp.Config
+return {
   cmd = { "tailwindcss-language-server", "--stdio" },
   filetypes = {
     "html",
@@ -82,5 +83,3 @@ local config = {
     },
   },
 }
-
-return config
