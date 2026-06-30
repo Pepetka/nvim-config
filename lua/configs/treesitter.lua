@@ -1,6 +1,22 @@
 local ts = require("nvim-treesitter")
 local api = vim.api
 
+-- Use the forked styled parser until the upstream fix is merged.
+local function override_styled_parser()
+  require("nvim-treesitter.parsers").styled.install_info = {
+    url = "https://github.com/Pepetka/tree-sitter-styled",
+    revision = "b48b278155a049de9f116139456a1123241645f8",
+    files = { "src/parser.c", "src/scanner.c" },
+  }
+end
+override_styled_parser()
+
+-- nvim-treesitter reloads parser configs on install/update, so re-apply the override.
+api.nvim_create_autocmd("User", {
+  pattern = "TSUpdate",
+  callback = override_styled_parser,
+})
+
 local parsers = {
   "bash",
   "c",
