@@ -1,7 +1,9 @@
 local mason = require("mason")
 local mason_lsp = require("mason-lspconfig")
 
-local mason_config = {
+local ts_lsp = vim.g.ts_lsp or "vtsls"
+
+mason.setup({
   ui = {
     border = "rounded",
     icons = {
@@ -10,13 +12,12 @@ local mason_config = {
       package_uninstalled = "✗",
     },
   },
-}
-mason.setup(mason_config)
+})
 
-local mason_lsp_config = {
+mason_lsp.setup({
   ensure_installed = {
     "html",
-    "vtsls",
+    ts_lsp,
     "gopls",
     "cssls",
     "jsonls",
@@ -27,6 +28,7 @@ local mason_lsp_config = {
     "cssmodules_ls",
     "css_variables",
   },
-  automatic_enable = true,
-}
-mason_lsp.setup(mason_lsp_config)
+  automatic_enable = {
+    exclude = ts_lsp == "vtsls" and { "tsgo" } or { "vtsls" },
+  },
+})

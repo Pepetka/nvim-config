@@ -115,6 +115,9 @@ opt.modeline = false -- Ignore vim: directives in files (security hardening)
 vim.opt.spell = false -- Enable spell checking
 vim.opt.spelllang = "en_us,ru_ru" -- Spellcheck languages
 
+-- TypeScript LSP selector: "vtsls" (stable, default) or "tsgo" (experimental native preview)
+g.ts_lsp = "vtsls"
+
 g.loaded_node_provider = 0
 g.loaded_python3_provider = 0
 g.loaded_perl_provider = 0

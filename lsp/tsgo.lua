@@ -1,29 +1,15 @@
-local svelte_plugin_path = vim.fn.stdpath("data")
-  .. "/mason/packages/svelte-language-server/node_modules/typescript-svelte-plugin"
-
-local styled_plugin_path = vim.trim(vim.fn.system("npm root -g")) .. "/@styled/typescript-styled-plugin"
+-- Experimental Go-native TypeScript language server from Microsoft.
+-- Install via Mason (`:MasonInstall tsgo`) or npm:
+--   npm install -D @typescript/native-preview
+--
+-- Switch between vtsls and tsgo with `vim.g.ts_lsp` in lua/options.lua.
+-- Note: tsgo does not support tsserver plugins (e.g. Svelte / styled-components).
+--
+-- Upstream reference:
+-- https://github.com/neovim/nvim-lspconfig/blob/master/lsp/tsgo.lua
 
 ---@type vim.lsp.Config
 return {
-  cmd = { "vtsls", "--stdio" },
-  filetypes = {
-    "javascript",
-    "javascriptreact",
-    "typescript",
-    "typescriptreact",
-  },
-  root_markers = {
-    "package-lock.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    "bun.lockb",
-    "bun.lock",
-    "tsconfig.json",
-    ".git",
-  },
-  init_options = {
-    hostInfo = "neovim",
-  },
   settings = {
     typescript = {
       updateImportsOnFileMove = { enabled = "always" },
@@ -65,29 +51,33 @@ return {
         includePackageJsonAutoImports = "auto",
       },
     },
-    vtsls = {
-      autoUseWorkspaceTsdk = true,
-      tsserver = {
-        globalPlugins = {
-          {
-            name = "typescript-svelte-plugin",
-            location = svelte_plugin_path,
-            enableForWorkspaceTypeScriptVersions = true,
-          },
-          {
-            name = "@styled/typescript-styled-plugin",
-            location = styled_plugin_path,
-            enableForWorkspaceTypeScriptVersions = true,
-          },
-        },
-      },
-      experimental = {
-        completion = {
-          enableServerSideFuzzyMatch = true,
-          entriesLimit = 200,
-        },
-        maxInlayHintLength = 30,
-      },
-    },
+  },
+  cmd = function(dispatchers, config_ctx)
+    local cmd = "tsgo"
+    if (config_ctx or {}).root_dir then
+      local local_cmd = vim.fs.joinpath(config_ctx.root_dir, "node_modules/.bin", cmd)
+      if vim.fn.executable(local_cmd) == 1 then
+        cmd = local_cmd
+      end
+    end
+    return vim.lsp.rpc.start({ cmd, "--lsp", "--stdio" }, dispatchers)
+  end,
+  filetypes = {
+    "javascript",
+    "javascriptreact",
+    "javascript.jsx",
+    "typescript",
+    "typescriptreact",
+    "typescript.tsx",
+  },
+  root_markers = {
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "bun.lockb",
+    "bun.lock",
+    "tsconfig.json",
+    "jsconfig.json",
+    ".git",
   },
 }
