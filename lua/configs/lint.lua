@@ -25,6 +25,10 @@ lint.linters_by_ft = {
 vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "FileType", "InsertLeave", "TextChanged" }, {
   group = vim.api.nvim_create_augroup("NvimLint", { clear = true }),
   callback = function(args)
+    if vim.bo[args.buf].buftype ~= "" then
+      return
+    end
+
     local bufname = vim.api.nvim_buf_get_name(args.buf)
     if bufname:match("/node_modules/") then
       return
