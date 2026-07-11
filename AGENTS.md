@@ -1,6 +1,6 @@
 # Project Overview
 
-Personal Neovim configuration (Lua, Neovim 0.11+, `vim.pack`). Targets the live config directory at `~/.config/nvim`.
+Personal Neovim configuration (Lua, Neovim 0.12+, `vim.pack`). Targets the live config directory at `~/.config/nvim`.
 
 ## Technology Stack
 
@@ -29,7 +29,8 @@ Plugin groups in `lua/plugins/init.lua` load in order: `shared` → `core` → `
 - `init.lua` — entry point
 - `lua/options.lua` — `vim.opt` / `vim.g`, including `g.ts_lsp`
 - `lua/mappings.lua` — global leader maps (`<leader>` = space, `<localleader>` = `\`)
-- `lua/core.lua` — autocommands and user commands (`:PackClean`, `:PackUpdate`, `:LspRestart`, `:LspStop`, `:LspStart`, `:TsLspSwitch`)
+- `lua/core.lua` — autocommands and user commands
+  (`:PackClean`, `:PackUpdate`, `:LspRestart`, `:LspStop`, `:LspStart`, `:TsLspSwitch`)
 - `lua/plugins/groups/*.lua` — plugin specs
 - `lua/configs/*.lua` — per-plugin setup
 - `lsp/*.lua` — server configs loaded by `vim.lsp.config` in `lua/configs/lsp.lua`
@@ -63,9 +64,11 @@ No build step or test suite. When editing the config:
 
 ### LSP Servers
 
-`mason-lspconfig` installs and enables: `vtsls`, `tsgo`, `gopls`, `html`, `cssls`, `jsonls`, `lua_ls`, `svelte`, `prismals`, `tailwindcss`, `cssmodules_ls`, `css_variables`.
+`mason-lspconfig` installs and enables:
+`vtsls`, `tsgo`, `gopls`, `html`, `cssls`, `jsonls`, `lua_ls`, `svelte`, `prismals`, `tailwindcss`, `cssmodules_ls`, `css_variables`.
 
-Active TypeScript server is `vim.g.ts_lsp` (`"vtsls"` default). `:TsLspSwitch` toggles between `vtsls` and `tsgo` at runtime; only one is enabled at a time.
+Active TypeScript server is `vim.g.ts_lsp` (`"vtsls"` default). `:TsLspSwitch`
+toggles between `vtsls` and `tsgo` at runtime; only one is enabled at a time.
 
 ### Formatting
 
@@ -75,11 +78,14 @@ Active TypeScript server is `vim.g.ts_lsp` (`"vtsls"` default). `:TsLspSwitch` t
 - Go: `goimports` / `gofmt`
 - Python: `ruff_format` / `black`
 - JS/TS/JSX/TSX/Svelte: Oxc (`oxlint`, `oxfmt`) if Oxc configs exist; otherwise `eslint_d` then `prettierd`
-- CSS/SCSS/HTML/YAML/Markdown/JSON/JSONC: `oxfmt` if Oxc formatter config exists; otherwise `prettierd` (JSON also tries `jq`)
+- CSS/SCSS/HTML/YAML/Markdown/JSON/JSONC: `oxfmt` if Oxc formatter config exists;
+  otherwise `prettierd` (JSON also tries `jq`)
 - Shell: `shfmt`
 - Fallback: `trim_whitespace`
 
-`prettierd` runs only when a Prettier config is found. Auto-format on save is enabled globally unless disabled with `:FormatDisable` / `:FormatDisable!`; re-enable with `:FormatEnable`.
+`prettierd` runs only when a Prettier config is found. Auto-format on save is
+enabled globally unless disabled with `:FormatDisable` / `:FormatDisable!`;
+re-enable with `:FormatEnable`.
 
 ### Linting
 
@@ -126,7 +132,8 @@ For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
   - `ui.lua` — statusline, tabline, dashboard, notifications, visuals
   - `extras.lua` — optional utilities
 - Create a matching `lua/configs/<plugin>.lua` and require it in the same group file.
-- For a new LSP server add `lsp/<server>.lua` and add the server to `ensure_installed` in `lua/configs/mason.lua` if Mason manages it.
+- For a new LSP server add `lsp/<server>.lua` and add the server to
+  `ensure_installed` in `lua/configs/mason.lua` if Mason manages it.
 - When adding JS/TS formatter or linter support, update `lua/utils/oxc_config.lua` if Oxc detection is needed.
 - Always use `require("utils.map_opts")` for new keymaps and include a description.
 - Reuse helpers in `lua/utils/` instead of duplicating logic.
