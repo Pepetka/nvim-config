@@ -3,20 +3,6 @@ local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 local oxc = require("utils.oxc_config")
 
-local prettier_configs = {
-  ".prettierrc",
-  ".prettierrc.json",
-  ".prettierrc.yaml",
-  ".prettierrc.yml",
-  ".prettierrc.js",
-  ".prettierrc.cjs",
-  ".prettierrc.mjs",
-  "prettier.config.js",
-  "prettier.config.cjs",
-  "prettier.config.mjs",
-  ".prettierignore",
-}
-
 local function js_formatters(bufnr)
   local bufname = vim.api.nvim_buf_get_name(bufnr)
   local has_oxfmt = oxc.has_oxfmt_config(bufnr)
@@ -80,11 +66,6 @@ conform.setup({
   end,
 
   formatters = {
-    prettierd = {
-      condition = function(_, ctx)
-        return vim.fs.find(prettier_configs, { path = ctx.filename, upward = true })[1] ~= nil
-      end,
-    },
     shfmt = {
       prepend_args = { "-i", "2" },
     },
