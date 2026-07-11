@@ -20,6 +20,33 @@ npm_info.setup({
   },
 })
 
+-- npm outdated may return entries without a `current` field (e.g. in monorepos
+-- where a dependency is declared but not installed in the package's own
+-- node_modules). Drop those entries so the plugin doesn't crash on
+-- `string.find(nil, "-")`.
+local orig_handle_npm_results = core.handle_npm_results
+---@diagnostic disable-next-line: duplicate-set-field
+core.handle_npm_results = function(result, dep_type, dependencies, bufnr)
+  if dep_type == "outdated" and result.stdout then
+    local ok, data = pcall(vim.json.decode, result.stdout)
+    if ok and type(data) == "table" then
+      local function drop_missing_current(tbl)
+        for name, info in pairs(tbl) do
+          if type(info) == "table" and info.current == nil then
+            tbl[name] = nil
+          end
+        end
+      end
+      drop_missing_current(data)
+      if type(data.dependencies) == "table" then
+        drop_missing_current(data.dependencies)
+      end
+      result = vim.tbl_extend("force", result, { stdout = vim.json.encode(data) })
+    end
+  end
+  return orig_handle_npm_results(result, dep_type, dependencies, bufnr)
+end
+
 -- The default autocmd runs npm commands from Neovim's cwd, so inner
 -- package.json files in a monorepo get no results. Replace it with an
 -- autocmd that runs npm from the buffer's own directory.
