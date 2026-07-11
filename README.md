@@ -150,6 +150,12 @@ Most linters and formatters can also be installed through `:Mason` after first l
 | `go` | `gopls` language server |
 | `python` | Python language server support |
 
+#### Language server plugins
+
+| Tool | Purpose |
+|------|---------|
+| `@styled/typescript-styled-plugin` | CSS-in-JS support for styled-components / Emotion in `vtsls` (`npm install -g`) |
+
 #### Linters and formatters (also available via `:Mason`)
 
 | Tool | Purpose |
@@ -230,6 +236,9 @@ Install it first (or alongside this config) for the best results.
    :Mason
    ```
 
+   Auto-format on save is enabled by default. Toggle it globally with `:FormatDisable` / `:FormatEnable`,
+   or per-buffer with `:FormatDisable!` / `:FormatEnable!`.
+
 5. Run `:checkhealth` to verify that external dependencies are detected correctly.
 
 ## Supported languages
@@ -253,6 +262,15 @@ languages have LSP, Treesitter, and formatting/linting support out of the box:
 | Markdown | — | `markdownlint` |
 | Rust | — | Treesitter support |
 | YAML / TOML / XML | — | Treesitter support |
+
+For CSS-in-JS support (styled-components, Emotion) with `vtsls`, install the TypeScript plugin globally:
+
+```bash
+npm install -g @styled/typescript-styled-plugin
+```
+
+`tsgo` does not support tsserver plugins (for example styled-components or Svelte), so switch back to `vtsls`
+when you need those features.
 
 Additional Treesitter parsers are installed for syntax highlighting and folding.
 
@@ -279,6 +297,9 @@ Additional Treesitter parsers are installed for syntax highlighting and folding.
 - **Inline diagnostics** with `tiny-inline-diagnostic.nvim`
 - **TODO/FIXME highlighting** with `todo-comments.nvim`
 - **Polished message UI** with `noice.nvim`
+- **File tree on the right** with `nvim-tree` (`netrw` is disabled)
+- **Live theme switching** via `~/.config/theme/mode`
+- **Better Escape** — `jk`, `kj`, `jj` act as Escape in insert/visual modes
 
 ## Key bindings
 
@@ -312,6 +333,19 @@ Leader is `<Space>`, local leader is `\`.
 | `<leader>dc` | Start / continue debugging |
 | `<leader>db` | Toggle breakpoint |
 | `<leader>dv` | Toggle debug view |
+| `<leader>dt` | Terminate debugging |
+| `<leader>dr` | Toggle debug REPL |
+| `<leader>ld` | Floating diagnostic for current line |
+| `]h`, `[h` | Next / previous git hunk |
+| `<leader>hp` | Preview git hunk |
+| `<leader>hb` | Blame line |
+| `<leader>fh` | Help tags |
+| `<leader>fo` | Recent files |
+| `<leader>qf` | Find TODOs |
+| `<leader>qt` | Open TODOs in Trouble |
+| `<leader>ic` | Toggle cursor diagnostic |
+| `<leader>mp` | Start live preview |
+| `<leader>mi` | Hover image under cursor |
 
 For the full list, see `lua/mappings.lua` and `lua/configs/*.lua`.
 
@@ -324,6 +358,7 @@ For the full list, see `lua/mappings.lua` and `lua/configs/*.lua`.
 - [ ] Verify that the lsp and treesitter parsers were installed automatically (run `:LspInfo` and `:checkhealth nvim-treesitter`).
 - [ ] Optionally create `~/.config/theme/mode` containing `light` or `dark` to switch the theme from outside Neovim.
 - [ ] Run `:checkhealth` and fix any missing optional dependencies.
+- [ ] If you use AI completion, authenticate Codeium so `windsurf.nvim` can read `~/.codeium/config.json`.
 - [ ] Press `<leader>ch` to open the cheatsheet and explore keymaps by mode.
 
 ## Updating
