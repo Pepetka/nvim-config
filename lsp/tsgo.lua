@@ -53,7 +53,7 @@ return {
     },
   },
   cmd = function(dispatchers, config_ctx)
-    local cmd = "tsgo"
+    local cmd = "tsc"
     if (config_ctx or {}).root_dir then
       local local_cmd = vim.fs.joinpath(config_ctx.root_dir, "node_modules/.bin", cmd)
       if vim.fn.executable(local_cmd) == 1 then
