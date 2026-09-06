@@ -15,7 +15,7 @@ Personal Neovim configuration (Lua, Neovim 0.12+, `vim.pack`). Targets the live 
 - **Formatter:** `conform.nvim` (prefers Oxc when Oxc configs exist, else `eslint_d`/`prettierd`)
 - **Linter:** `nvim-lint` (prefers `oxlint` when Oxc lint config exists, else `eslint_d`)
 - **AI completion:** `windsurf.nvim` (active); `minuet-ai.nvim` and `neocodeium` configs are present but disabled
-- **DAP:** `nvim-dap` + `nvim-dap-view` for JS/TS via `js-debug-adapter`
+- **DAP:** `nvim-dap` + `nvim-dap-view` for JS/TS via `js-debug-adapter` and Go via `delve`
 - **Extras:** `leap.nvim`, `vim-tmux-navigator`, `nvim-bqf`, `nvim-hlslens`, `todo-comments.nvim`, `mini.ai`, `mini.cursorword`
 
 ## Load Order
@@ -92,6 +92,7 @@ re-enable with `:FormatEnable`.
 `nvim-lint` in `lua/configs/lint.lua`:
 
 - JS/TS/JSX/TSX/Svelte: `oxlint` if Oxc lint config exists; otherwise `eslint_d`
+- Go: `golangci-lint`
 - Python: `ruff`
 - Markdown: `markdownlint`
 - Shell: `shellcheck`
@@ -110,6 +111,7 @@ Triggers: `BufWritePost`, `BufReadPost`, `FileType`, `InsertLeave`, `TextChanged
 - `<leader>x` — close current buffer, `<leader>cx` — close all except current (scope-aware)
 - `<C-f>` — floating terminal
 - `<leader>ut` — undo tree
+- `<leader>ui` — toggle inlay hints (globally)
 - DAP: `<leader>dc`, `<leader>db`/`dB`, `<leader>do`/`di`/`dO`, `<leader>dv`, `<leader>dw`
 - Insert AI: `<A-g>`, `<A-w>`, `<A-l>`, `<A-j>`/`<A-k>`, `<A-c>` (`windsurf.nvim`)
 

@@ -328,6 +328,7 @@ Leader is `<Space>`, local leader is `\`.
 | `<leader>cx` | Close all buffers except current |
 | `<C-f>` | Toggle floating terminal |
 | `<leader>ut` | Toggle undo tree |
+| `<leader>ui` | Toggle inlay hints |
 | `<leader>nH` | Notification history |
 | `<leader>nh` | Message history (Noice) |
 | `<leader>dc` | Start / continue debugging |
