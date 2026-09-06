@@ -4,6 +4,8 @@ M.oxfmt_configs = {
   ".oxfmtrc.json",
   ".oxfmtrc.jsonc",
   "oxfmt.config.ts",
+  "oxfmt.config.mts",
+  "oxfmt.config.cts",
   "oxfmt.config.js",
   "oxfmt.config.mjs",
   "oxfmt.config.cjs",
@@ -12,6 +14,8 @@ M.oxfmt_configs = {
 M.oxlint_configs = {
   ".oxlintrc.json",
   "oxlint.config.ts",
+  "oxlint.config.mts",
+  "oxlint.config.cts",
   "oxlint.config.js",
   "oxlint.config.mjs",
   "oxlint.config.cjs",

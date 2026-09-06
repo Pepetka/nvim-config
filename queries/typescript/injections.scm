@@ -26,3 +26,17 @@
   (#offset! @injection.content 0 1 0 -1)
   (#set! injection.include-children)
   (#set! injection.language "styled"))
+
+; styled.div<T>`<css>`
+; tree-sitter's tsx grammar parses `styled.div<T>` as two comparisons
+; (binary_expression "<" / ">"), not as a generic instantiation, so the
+; bundled `styled.div` pattern never matches this shape.
+(binary_expression
+  left: (binary_expression
+    left: (member_expression
+      object: (identifier) @_name
+      (#eq? @_name "styled")))
+  right: (template_string) @injection.content
+  (#offset! @injection.content 0 1 0 -1)
+  (#set! injection.include-children)
+  (#set! injection.language "styled"))

@@ -5,7 +5,7 @@ local api = vim.api
 local function override_styled_parser()
   require("nvim-treesitter.parsers").styled.install_info = {
     url = "https://github.com/Pepetka/tree-sitter-styled",
-    revision = "b48b278155a049de9f116139456a1123241645f8",
+    revision = "e2bfd21812dadd0d7a84dfc878c9151f61295944",
     files = { "src/parser.c", "src/scanner.c" },
   }
 end
