@@ -63,27 +63,59 @@ map("n", "<leader>lT", "<cmd>TsLspSwitch<cr>", map_opts("LSP: Switch TypeScript 
 -- ═══════════════════════════════════════════════════════════════
 --  Toggle options
 -- ═══════════════════════════════════════════════════════════════
-map("n", "<leader>un", "<cmd>set nu!<CR>", map_opts("General: Toggle line numbers"))
-map("n", "<leader>ur", "<cmd>set rnu!<CR>", map_opts("General: Toggle relative numbers"))
-map("n", "<leader>us", "<cmd>set spell!<cr>", map_opts("Toggle: Spell check"))
-
-local function toggle_wrap()
-  if vim.o.wrap then
-    vim.opt.wrap = false
-    vim.opt.linebreak = true
-    pcall(vim.keymap.del, "n", "j")
-    pcall(vim.keymap.del, "n", "k")
-    vim.notify("Wrap disabled", vim.log.levels.INFO)
-  else
-    vim.opt.wrap = true
-    vim.opt.linebreak = true
-    map("n", "j", "gj", map_opts("Navigate: Move down by visual line"))
-    map("n", "k", "gk", map_opts("Navigate: Move up by visual line"))
-    vim.notify("Wrap enabled", vim.log.levels.INFO)
+-- Set a window-local option in all existing windows and as the default for new ones.
+---@param name string window-local option name
+---@param value boolean
+local function set_win_option_global(name, value)
+  vim.go[name] = value
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_get_config(win).relative == "" then -- skip floating windows
+      vim.wo[win][name] = value
+    end
   end
 end
 
+---@param name string window-local option name
+---@param label string option label for the notification
+local function toggle_win_option(name, label)
+  local enabled = not vim.wo[name]
+  set_win_option_global(name, enabled)
+  vim.notify(label .. " " .. (enabled and "enabled" or "disabled"), vim.log.levels.INFO)
+end
+
+map("n", "<leader>un", function()
+  toggle_win_option("number", "Line numbers")
+end, map_opts("General: Toggle line numbers"))
+map("n", "<leader>ur", function()
+  toggle_win_option("relativenumber", "Relative numbers")
+end, map_opts("General: Toggle relative numbers"))
+map("n", "<leader>us", function()
+  toggle_win_option("spell", "Spell check")
+end, map_opts("Toggle: Spell check"))
+map("n", "<leader>ui", function()
+  local enabled = not vim.lsp.inlay_hint.is_enabled()
+  vim.lsp.inlay_hint.enable(enabled)
+  vim.notify("Inlay hints " .. (enabled and "enabled" or "disabled"), vim.log.levels.INFO)
+end, map_opts("LSP: Toggle inlay hints"))
+
+local function toggle_wrap()
+  local enabled = not vim.wo.wrap
+  set_win_option_global("wrap", enabled)
+  vim.opt.linebreak = true
+  if enabled then
+    map("n", "j", "gj", map_opts("Navigate: Move down by visual line"))
+    map("n", "k", "gk", map_opts("Navigate: Move up by visual line"))
+  else
+    pcall(vim.keymap.del, "n", "j")
+    pcall(vim.keymap.del, "n", "k")
+  end
+  vim.notify("Wrap " .. (enabled and "enabled" or "disabled"), vim.log.levels.INFO)
+end
+
 map("n", "<leader>uw", toggle_wrap, map_opts("General: Toggle word wrap"))
+
+map("n", "j", "gj", map_opts("Navigate: Move down by visual line"))
+map("n", "k", "gk", map_opts("Navigate: Move up by visual line"))
 
 -- ═══════════════════════════════════════════════════════════════
 --  Folds

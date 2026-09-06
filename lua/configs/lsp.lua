@@ -36,6 +36,27 @@ vim.diagnostic.config({
   },
 })
 
+-- Neovim 0.11+ sets 'concealcursor=""' in stylized LSP floating windows
+-- (hover, signature help, docs) so concealed markdown is visible. Override
+-- open_floating_preview to restore "nv" so code fences (e.g. ```lua) stay
+-- hidden while still allowing navigation/visual selection when focused.
+do
+  local orig_open_floating_preview = vim.lsp.util.open_floating_preview
+  ---@diagnostic disable-next-line: duplicate-set-field
+  function vim.lsp.util.open_floating_preview(contents, syntax, opts, ...)
+    local bufnr, winnr = orig_open_floating_preview(contents, syntax, opts, ...)
+    if winnr and vim.api.nvim_win_is_valid(winnr) then
+      if vim.bo[bufnr].filetype == "markdown" and vim.wo[winnr].conceallevel > 0 then
+        vim.wo[winnr].concealcursor = "nv"
+      end
+    end
+    return bufnr, winnr
+  end
+end
+
+-- Inlay hints are enabled globally; toggle with <leader>ui
+vim.lsp.inlay_hint.enable(true)
+
 vim.api.nvim_create_autocmd("LspAttach", {
   group = vim.api.nvim_create_augroup("UserLspConfig", { clear = true }),
   callback = function(args)
@@ -44,8 +65,6 @@ vim.api.nvim_create_autocmd("LspAttach", {
     if not client then
       return
     end
-
-    vim.lsp.inlay_hint.enable(false, { bufnr = bufnr })
 
     -- Svelte: workaround to trigger reloading JS/TS files
     -- See https://github.com/sveltejs/language-tools/issues/2008

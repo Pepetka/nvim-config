@@ -28,7 +28,7 @@ opt.matchtime = 0 -- No bracket highlight delay
 opt.jumpoptions = "view" -- Preserve scroll position when jumping between locations
 opt.whichwrap:append("<>[]hl") -- Allow h/l and arrows to cross line boundaries
 
-opt.wrap = false -- Wrap lines that exceed window width
+opt.wrap = true -- Wrap lines that exceed window width
 opt.showbreak = "↪ " -- Character to show at the start of wrapped lines
 opt.linebreak = true -- Wrap lines at word boundaries, not mid-word
 opt.smoothscroll = true -- Smooth scrolling for wrapped lines (Neovim 0.10+)
