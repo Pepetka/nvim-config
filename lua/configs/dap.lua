@@ -74,9 +74,71 @@ local js_configs = {
 -- Falls back to existing tabs/windows before creating new splits.
 dap.defaults.fallback.switchbuf = "usevisible,usetab,uselast"
 
+-- Load project debug configurations from .debug/launch.json instead of .vscode.
+---@diagnostic disable-next-line: duplicate-set-field
+dap.providers.configs["dap.launch.json"] = function()
+  return require("dap.ext.vscode").getconfigs(vim.fn.getcwd() .. "/.debug/launch.json")
+end
+
 for _, ft in ipairs(js_filetypes) do
   dap.configurations[ft] = js_configs
 end
+
+-- Go debugging via Delve.
+dap.adapters.go = {
+  type = "server",
+  host = "127.0.0.1",
+  port = "${port}",
+  executable = {
+    command = vim.fn.stdpath("data") .. "/mason/bin/dlv",
+    args = { "dap", "-l", "127.0.0.1:${port}" },
+  },
+}
+
+---@type dap.Configuration[]
+dap.configurations.go = {
+  -- Build and debug the current file.
+  {
+    type = "go",
+    request = "launch",
+    name = "Debug file",
+    program = "${file}",
+  },
+  -- Build and debug the package of the current file.
+  {
+    type = "go",
+    request = "launch",
+    name = "Debug package",
+    program = "${fileDirname}",
+  },
+  -- Debug the package of the current file, prompting for CLI arguments.
+  {
+    type = "go",
+    request = "launch",
+    name = "Debug package (args)",
+    program = "${fileDirname}",
+    args = function()
+      local input = vim.fn.input("Program args: ")
+      return vim.split(input, " ", { trimempty = true })
+    end,
+  },
+  -- Run tests of the current package under the debugger.
+  {
+    type = "go",
+    request = "launch",
+    name = "Debug test",
+    mode = "test",
+    program = "${fileDirname}",
+  },
+  -- Attach to an already running local Go process.
+  {
+    type = "go",
+    request = "attach",
+    name = "Attach to process",
+    mode = "local",
+    processId = require("dap.utils").pick_process,
+  },
+}
 
 local function setup_dap_highlights()
   vim.api.nvim_set_hl(0, "DapBreakpoint", { fg = colors.error })
