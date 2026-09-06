@@ -19,6 +19,40 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
+-- ═══════════════════════════════════════════════════════════════
+--  Quickfix formatter: show only filenames for LSP references
+-- ═══════════════════════════════════════════════════════════════
+---Return only the filename for LSP references lists; coordinates and
+---context are visible in the nvim-bqf preview.
+---@param info table
+---@return string[]
+_G.user_qf_textfunc = function(info)
+  local list
+  if info.quickfix == 1 then
+    list = vim.fn.getqflist({ id = info.id, items = 0, title = 1 })
+  else
+    list = vim.fn.getloclist(info.winid or 0, { id = info.id, items = 0, title = 1 })
+  end
+
+  if list.title ~= "References" then
+    return {}
+  end
+
+  local lines = {}
+  local start_idx = info.start_idx or 1
+  local end_idx = info.end_idx or #list.items
+  for i = start_idx, end_idx do
+    local item = list.items[i]
+    if item then
+      local name = item.bufnr > 0 and vim.api.nvim_buf_get_name(item.bufnr) or item.filename
+      table.insert(lines, vim.fn.fnamemodify(name, ":t"))
+    end
+  end
+  return lines
+end
+
+vim.o.qftf = "v:lua.user_qf_textfunc"
+
 local BIGFILE_SIZE = 1.5 * 1024 * 1024
 local BIGFILE_LINE_LENGTH = 1000
 
