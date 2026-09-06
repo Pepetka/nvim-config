@@ -5,6 +5,20 @@ local map_opts = require("utils.map_opts")
 
 fzf.setup({
   { "fzf-native", "hide" },
+  ui_select = function(opts, items)
+    local min_h, max_h = 0.15, 0.70
+    local ui_overhead_rows = 8
+    local h = math.min(math.max((#items + ui_overhead_rows) / vim.o.lines, min_h), max_h)
+    return {
+      winopts = {
+        title = opts.title or "Select",
+        height = h,
+        width = 0.60,
+        row = 0.40,
+        col = 0.50,
+      },
+    }
+  end,
   winopts = {
     height = 0.85,
     width = 0.80,
@@ -167,7 +181,6 @@ fzf.setup({
     file_icons = true,
     git_icons = false,
     lsp_icons = true,
-    ui_select = true,
     severity = "hint",
     icons = {
       ["Error"] = { icon = " ", color = "red" },
@@ -182,20 +195,6 @@ fzf.setup({
     previewer = "codeaction",
   },
 })
-
-fzf.register_ui_select(function(opts, items)
-  local min_h, max_h = 0.15, 0.70
-  local h = math.min(math.max((#items + 4) / vim.o.lines, min_h), max_h)
-  return {
-    winopts = {
-      title = opts.title or "Select",
-      height = h,
-      width = 0.60,
-      row = 0.40,
-      col = 0.50,
-    },
-  }
-end)
 
 -- ═══════════════════════════════════════════════════════════════
 --  Global keymaps
