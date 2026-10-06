@@ -74,6 +74,10 @@ projects with local TypeScript 7 (including npm aliases) or `tsgo` use the nativ
 `:TsLspSwitch` overrides one project for the session; `:TsLspAuto` restores automatic selection and
 `:TsLspInfo` shows the current choice.
 
+Tailwind LSP starts when an ancestor `package.json` declares `tailwindcss` in
+`dependencies` or `devDependencies`; the search stops at the Git root and supports workspace-level dependencies.
+The server detects v3 configs and v4 CSS entrypoints itself.
+
 CSS-in-JS template completion uses the blink source in `lua/completion/css_in_js.lua` with `cssls`,
 independently of the TS server. `lua/utils/css_in_js.lua` extracts the active template, masks
 `${...}`, and maps completion edits back to the host document. Hidden buffers remain in memory.

@@ -13,12 +13,36 @@ return {
     "astro",
     "templ",
   },
-  root_markers = {
-    "tailwind.config.js",
-    "tailwind.config.ts",
-    "postcss.config.js",
-    "postcss.config.ts",
-  },
+  root_dir = function(bufnr, on_dir)
+    local path = vim.api.nvim_buf_get_name(bufnr)
+    if path == "" then
+      return
+    end
+    local git_root = vim.fs.root(path, ".git")
+    local dir = vim.fs.dirname(path)
+    while dir do
+      local ok, package = pcall(function()
+        return vim.json.decode(table.concat(vim.fn.readfile(vim.fs.joinpath(dir, "package.json")), "\n"))
+      end)
+      if ok and type(package) == "table" then
+        for _, section in ipairs({ "dependencies", "devDependencies" }) do
+          local dependencies = package[section]
+          if type(dependencies) == "table" and dependencies.tailwindcss then
+            on_dir(dir)
+            return
+          end
+        end
+      end
+      if dir == git_root then
+        return
+      end
+      local parent = vim.fs.dirname(dir)
+      if parent == dir then
+        return
+      end
+      dir = parent
+    end
+  end,
   workspace_required = true,
   capabilities = {
     workspace = {

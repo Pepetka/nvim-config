@@ -271,6 +271,11 @@ Neovim session, `:TsLspAuto` restores automatic selection, and `:TsLspInfo` show
 
 Additional Treesitter parsers are installed for syntax highlighting and folding.
 
+Tailwind LSP starts when `tailwindcss` is declared in `dependencies` or `devDependencies`
+of an ancestor `package.json`, including a monorepo workspace manifest up to the Git root.
+The server automatically discovers v3 configuration files or v4 CSS entrypoints such as
+a stylesheet with `@import "tailwindcss"`; no Tailwind or PostCSS config file is required to start the LSP.
+
 ## Key features
 
 - **Plugin management** with Neovim's built-in `vim.pack` and a lockfile
