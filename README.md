@@ -333,6 +333,7 @@ Leader is `<Space>`, local leader is `\`.
 | `<C-f>`                         | Toggle floating terminal                   |
 | `<leader>ut`                    | Toggle undo tree                           |
 | `<leader>ui`                    | Toggle inlay hints                         |
+| `<leader>uc`                    | Toggle markup / JSON quote conceal globally |
 | `<leader>nH`                    | Notification history                       |
 | `<leader>nh`                    | Message history (Noice)                    |
 | `<leader>dc`                    | Start / continue debugging                 |

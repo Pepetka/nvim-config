@@ -126,6 +126,7 @@ Triggers: `BufWritePost`, `BufReadPost`, `FileType`, `InsertLeave`, `TextChanged
 - `<C-f>` — floating terminal
 - `<leader>ut` — undo tree
 - `<leader>ui` — toggle inlay hints (globally)
+- `<leader>uc` — toggle markup and JSON quote conceal globally in regular windows
 - DAP: `<leader>dc`, `<leader>db`/`dB`, `<leader>do`/`di`/`dO`, `<leader>dv`, `<leader>dw`
 - Insert AI: `<A-g>`, `<A-w>`, `<A-l>`, `<A-j>`/`<A-k>`, `<A-c>` (`windsurf.nvim`)
 

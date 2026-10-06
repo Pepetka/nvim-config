@@ -67,7 +67,7 @@ map("n", "<leader>lI", "<cmd>TsLspInfo<cr>", map_opts("LSP: Show TypeScript serv
 -- ═══════════════════════════════════════════════════════════════
 -- Set a window-local option in all existing windows and as the default for new ones.
 ---@param name string window-local option name
----@param value boolean
+---@param value boolean|integer
 local function set_win_option_global(name, value)
   vim.go[name] = value
   for _, win in ipairs(vim.api.nvim_list_wins()) do
@@ -99,6 +99,12 @@ map("n", "<leader>ui", function()
   vim.lsp.inlay_hint.enable(enabled)
   vim.notify("Inlay hints " .. (enabled and "enabled" or "disabled"), vim.log.levels.INFO)
 end, map_opts("LSP: Toggle inlay hints"))
+
+map("n", "<leader>uc", function()
+  local enabled = vim.go.conceallevel == 0
+  set_win_option_global("conceallevel", enabled and 2 or 0)
+  vim.notify("Conceal " .. (enabled and "enabled" or "disabled"), vim.log.levels.INFO)
+end, map_opts("Toggle: Conceal markup and JSON quotes"))
 
 local function toggle_wrap()
   local enabled = not vim.wo.wrap
