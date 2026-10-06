@@ -110,10 +110,14 @@ local function multi_operations(bufnr)
     local from_dir = vim.fn.fnamemodify(file_src, ":h") .. "/"
 
     vim.ui.input({ prompt = string.format("Move %s files to: ", #marks), default = from_dir }, function(input)
-      if input then
-        local to_dir = vim.fn.fnamemodify(input, ":h") .. "/"
-        vim.fn.system({ "mkdir", "-p", to_dir })
+      if input and vim.trim(input) ~= "" then
+        local to_dir = vim.fn.expand(input)
+        if vim.fn.mkdir(to_dir, "p") == 0 and vim.fn.isdirectory(to_dir) == 0 then
+          vim.notify("Unable to create directory: " .. to_dir, vim.log.levels.ERROR)
+          return
+        end
 
+        local failed = false
         for _, node in ipairs(marks) do
           local file = node.absolute_path
           if copy then
@@ -121,9 +125,15 @@ local function multi_operations(bufnr)
           else
             vim.fn.system({ "mv", file, to_dir })
           end
+          if vim.v.shell_error ~= 0 then
+            failed = true
+            vim.notify("Could not " .. (copy and "copy " or "move ") .. file, vim.log.levels.ERROR)
+          end
         end
 
-        nvimtree_api.marks.clear()
+        if not failed then
+          nvimtree_api.marks.clear()
+        end
         nvimtree_api.tree.reload()
       end
     end)

@@ -53,6 +53,9 @@ bufferline.setup({
     always_show_bufferline = false,
     sort_by = "id",
     custom_filter = function(buf_number)
+      if vim.bo[buf_number].buftype == "terminal" then
+        return false
+      end
       local excluded = { "terminal", "qf", "help", "prompt" }
       for _, ft in ipairs(excluded) do
         if vim.bo[buf_number].filetype == ft then

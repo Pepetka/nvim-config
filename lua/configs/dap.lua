@@ -5,6 +5,41 @@ local colors = require("utils.colors")
 
 local js_debug_path = vim.fn.stdpath("data") .. "/mason/packages/js-debug-adapter/js-debug/src/dapDebugServer.js"
 
+---Split a command-line string into args, keeping quoted segments as one arg.
+---@param input string
+---@return string[]
+local function split_args(input)
+  local args = {}
+  local i, len = 1, #input
+  while true do
+    while i <= len and input:sub(i, i):match("%s") do
+      i = i + 1
+    end
+    if i > len then
+      break
+    end
+    local buf = {}
+    while i <= len and not input:sub(i, i):match("%s") do
+      local c = input:sub(i, i)
+      if c == '"' or c == "'" then
+        local close = input:find(c, i + 1, true)
+        if close then
+          table.insert(buf, input:sub(i + 1, close - 1))
+          i = close + 1
+        else
+          table.insert(buf, c)
+          i = i + 1
+        end
+      else
+        table.insert(buf, c)
+        i = i + 1
+      end
+    end
+    table.insert(args, table.concat(buf))
+  end
+  return args
+end
+
 dap.adapters["pwa-node"] = {
   type = "server",
   host = "127.0.0.1",
@@ -119,7 +154,7 @@ dap.configurations.go = {
     program = "${fileDirname}",
     args = function()
       local input = vim.fn.input("Program args: ")
-      return vim.split(input, " ", { trimempty = true })
+      return split_args(input)
     end,
   },
   -- Run tests of the current package under the debugger.

@@ -2,6 +2,17 @@ local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 local noice = require("noice")
 
+local function float_win_options(extra_highlights)
+  return {
+    winblend = 0,
+    winhighlight = vim.tbl_extend(
+      "force",
+      { Normal = "NormalFloat", FloatBorder = "FloatBorder" },
+      extra_highlights or {}
+    ),
+  }
+end
+
 noice.setup({
   cmdline = {
     enabled = true,
@@ -127,15 +138,7 @@ noice.setup({
         style = "rounded",
         padding = { 0, 1 },
       },
-      win_options = {
-        winblend = 0,
-        winhighlight = {
-          Normal = "NormalFloat",
-          FloatBorder = "FloatBorder",
-          CursorLine = "PmenuSel",
-          Search = "Search",
-        },
-      },
+      win_options = float_win_options({ CursorLine = "PmenuSel", Search = "Search" }),
     },
     cmdline_popupmenu = {
       relative = "editor",
@@ -151,15 +154,7 @@ noice.setup({
         style = "rounded",
         padding = { 0, 1 },
       },
-      win_options = {
-        winblend = 0,
-        winhighlight = {
-          Normal = "NormalFloat",
-          FloatBorder = "FloatBorder",
-          CursorLine = "PmenuSel",
-          PmenuMatch = "PmenuMatch",
-        },
-      },
+      win_options = float_win_options({ CursorLine = "PmenuSel", PmenuMatch = "PmenuMatch" }),
     },
     popupmenu = {
       relative = "editor",
@@ -167,50 +162,24 @@ noice.setup({
         style = "rounded",
         padding = { 0, 1 },
       },
-      win_options = {
-        winblend = 0,
-        winhighlight = {
-          Normal = "NormalFloat",
-          FloatBorder = "FloatBorder",
-          CursorLine = "PmenuSel",
-          PmenuMatch = "PmenuMatch",
-        },
-      },
+      win_options = float_win_options({ CursorLine = "PmenuSel", PmenuMatch = "PmenuMatch" }),
     },
     hover = {
       border = {
         style = "rounded",
         padding = { 0, 1 },
       },
-      win_options = {
-        winblend = 0,
-        winhighlight = {
-          Normal = "NormalFloat",
-          FloatBorder = "FloatBorder",
-        },
-      },
+      win_options = float_win_options(),
     },
     signature = {
       border = {
         style = "rounded",
         padding = { 0, 1 },
       },
-      win_options = {
-        winblend = 0,
-        winhighlight = {
-          Normal = "NormalFloat",
-          FloatBorder = "FloatBorder",
-        },
-      },
+      win_options = float_win_options(),
     },
     mini = {
-      win_options = {
-        winblend = 0,
-        winhighlight = {
-          Normal = "NormalFloat",
-          FloatBorder = "FloatBorder",
-        },
-      },
+      win_options = float_win_options(),
     },
     split = {
       enter = true,

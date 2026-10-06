@@ -69,7 +69,7 @@ local group = vim.api.nvim_create_augroup("nvim_undotree_local", { clear = true 
 vim.api.nvim_create_autocmd("FileType", {
   group = group,
   pattern = "nvim-undotree",
-  callback = function()
+  callback = function(args)
     vim.opt_local.number = false
     vim.opt_local.relativenumber = false
     vim.opt_local.signcolumn = "no"
@@ -79,11 +79,11 @@ vim.api.nvim_create_autocmd("FileType", {
 
     map("n", "q", function()
       M.close()
-    end, opts("Close undotree window"))
+    end, opts("Close undotree window", args.buf))
 
     map("n", "<CR>", function()
       M.close()
-    end, opts("Apply untotree state and close"))
+    end, opts("Apply undotree state and close", args.buf))
   end,
 })
 

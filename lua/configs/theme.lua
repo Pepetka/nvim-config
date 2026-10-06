@@ -3,6 +3,7 @@ local colors = require("utils.colors")
 local theme_highlights = require("utils.theme_highlights")
 
 local THEME_MODE_FILE = vim.fn.expand("~/.config/theme/mode")
+local applied_mode
 
 local function read_mode_file()
   local file = io.open(THEME_MODE_FILE, "r")
@@ -16,11 +17,12 @@ end
 
 local function apply_theme(mode)
   -- Only manual modes are supported; default to dark.
-  if mode == "light" then
-    vim.api.nvim_set_option_value("background", "light", {})
-  else
-    vim.api.nvim_set_option_value("background", "dark", {})
+  mode = mode == "light" and "light" or "dark"
+  if applied_mode == mode and vim.o.background == mode and vim.g.colors_name == "tokyonight" then
+    return
   end
+  applied_mode = mode
+  vim.api.nvim_set_option_value("background", mode, {})
   vim.cmd.colorscheme("tokyonight")
 end
 
@@ -32,33 +34,55 @@ local function watch_theme_change()
 
   local mode_basename = vim.fn.fnamemodify(THEME_MODE_FILE, ":t")
   local theme_dir = vim.fn.fnamemodify(THEME_MODE_FILE, ":h")
+  local retry_timer = vim.uv.new_timer()
+  local closed = false
+  local start_watcher
 
-  local function restart_watcher()
-    if handle then
-      vim.uv.fs_event_stop(handle)
+  start_watcher = function()
+    if closed then
+      return
     end
-    watch_theme_change()
+    local ok = vim.uv.fs_event_start(
+      handle,
+      theme_dir,
+      {},
+      vim.schedule_wrap(function(err, filename)
+        if closed then
+          return
+        end
+        if err then
+          vim.uv.fs_event_stop(handle)
+          if retry_timer then
+            retry_timer:start(1000, 0, vim.schedule_wrap(start_watcher))
+          end
+          return
+        end
+
+        if filename and filename ~= "" and filename ~= mode_basename then
+          return
+        end
+        apply_theme(read_mode_file())
+      end)
+    )
+    if not ok and retry_timer then
+      retry_timer:start(1000, 0, vim.schedule_wrap(start_watcher))
+    end
   end
 
-  vim.uv.fs_event_start(
-    handle,
-    theme_dir,
-    {},
-    vim.schedule_wrap(function(err, filename)
-      if err then
-        restart_watcher()
-        return
+  vim.api.nvim_create_autocmd("VimLeavePre", {
+    once = true,
+    callback = function()
+      closed = true
+      if retry_timer then
+        retry_timer:stop()
+        retry_timer:close()
       end
+      vim.uv.fs_event_stop(handle)
+      handle:close()
+    end,
+  })
 
-      -- Ignore events for other files in the theme directory.
-      if filename and filename ~= "" and filename ~= mode_basename then
-        return
-      end
-
-      local mode = read_mode_file()
-      apply_theme(mode)
-    end)
-  )
+  start_watcher()
 end
 
 local function setup_nvim_tree_highlights()

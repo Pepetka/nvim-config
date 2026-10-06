@@ -6,7 +6,8 @@ local map_opts = require("utils.map_opts")
 
 vim.api.nvim_create_autocmd("BufEnter", {
   group = vim.api.nvim_create_augroup("ScopeEmptyBufferCleanup", {}),
-  callback = buffer_utils.cleanup_empty_buffers,
+  -- Let navigation commands finish deleting their own temporary buffers first.
+  callback = vim.schedule_wrap(buffer_utils.cleanup_empty_buffers),
 })
 
 scope.setup({

@@ -1,5 +1,32 @@
 local M = {}
 
+local function close_buffer(fn, ...)
+  local ok, err = pcall(fn, ...)
+  if not ok then
+    vim.notify("Buffer was not closed: " .. tostring(err), vim.log.levels.WARN)
+  end
+end
+
+local function buffers_in_other_tabs(core, current_tab)
+  local buffers = {}
+  for tab, tab_bufs in pairs(core.cache) do
+    if tab ~= current_tab then
+      for _, buf in ipairs(tab_bufs) do
+        buffers[buf] = true
+      end
+    end
+  end
+  return buffers
+end
+
+local function visible_buffers()
+  local buffers = {}
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    buffers[vim.api.nvim_win_get_buf(win)] = true
+  end
+  return buffers
+end
+
 ---Count buffers that are currently listed.
 ---Because scope.nvim unlists buffers from inactive tabs, this effectively
 ---counts buffers visible in the current tab.
@@ -15,8 +42,8 @@ end
 
 ---Close buffers that belonged to a tab being closed.
 ---Skips buffers that are still used in other tabs or visible in other windows.
----Terminal buffers are preserved; everything else (including modified buffers)
----is closed forcefully, trusting the user to know what they are doing.
+---Terminal and modified buffers are preserved. Modified buffers are relisted
+---because scope.nvim unlists them when leaving the closed tab.
 ---@param core table scope.core module
 function M.close_buffers_in_closed_tab(core)
   local closed_tab = core.last_tab
@@ -26,25 +53,19 @@ function M.close_buffers_in_closed_tab(core)
   end
 
   -- Collect buffers used in other tabs' scopes.
-  local used_elsewhere = {}
-  for tab, tab_bufs in pairs(core.cache) do
-    if tab ~= closed_tab then
-      for _, buf in ipairs(tab_bufs) do
-        used_elsewhere[buf] = true
-      end
-    end
-  end
+  local used_elsewhere = buffers_in_other_tabs(core, closed_tab)
 
   -- Collect buffers currently visible in any window (all tabs).
-  for _, win in ipairs(vim.api.nvim_list_wins()) do
-    used_elsewhere[vim.api.nvim_win_get_buf(win)] = true
+  for buf in pairs(visible_buffers()) do
+    used_elsewhere[buf] = true
   end
 
   for _, buf in ipairs(bufs) do
     if vim.api.nvim_buf_is_valid(buf) and not used_elsewhere[buf] then
-      -- Keep terminal buffers alive; force-close everything else.
-      if vim.bo[buf].buftype ~= "terminal" then
-        pcall(vim.api.nvim_buf_delete, buf, { force = true })
+      if vim.bo[buf].modified then
+        vim.bo[buf].buflisted = true
+      elseif vim.bo[buf].buftype ~= "terminal" then
+        close_buffer(vim.api.nvim_buf_delete, buf, { force = false })
       end
     end
   end
@@ -60,10 +81,7 @@ function M.cleanup_empty_buffers()
   end
 
   -- Collect buffers that are currently visible in any window (all tabs).
-  local visible = {}
-  for _, win in ipairs(vim.api.nvim_list_wins()) do
-    visible[vim.api.nvim_win_get_buf(win)] = true
-  end
+  local visible = visible_buffers()
 
   for _, buf in ipairs(vim.api.nvim_list_bufs()) do
     if
@@ -88,9 +106,9 @@ function M.smart_close_buffer(core)
   local tab_count = #vim.api.nvim_list_tabpages()
   if tab_count == 1 and M.count_listed_buffers() <= 1 then
     local current = vim.api.nvim_get_current_buf()
-    pcall(vim.api.nvim_buf_delete, current, { force = false })
+    close_buffer(vim.api.nvim_buf_delete, current, { force = false })
   else
-    pcall(core.close_buffer, { force = false })
+    close_buffer(core.close_buffer, { force = false })
   end
 end
 
@@ -124,31 +142,18 @@ function M.close_all_except_current(core)
   end
 
   -- Determine which target buffers are also used in other tabs.
-  local used_elsewhere = {}
-  for tab, tab_bufs in pairs(core.cache) do
-    if tab ~= current_tab then
-      for _, buf in ipairs(tab_bufs) do
-        used_elsewhere[buf] = true
-      end
-    end
-  end
+  local used_elsewhere = buffers_in_other_tabs(core, current_tab)
 
   for _, buf in ipairs(to_close) do
     if vim.api.nvim_buf_is_valid(buf) then
       if used_elsewhere[buf] then
         vim.api.nvim_set_option_value("buflisted", false, { buf = buf })
-        local filtered = {}
-        for _, b in ipairs(core.cache[current_tab] or {}) do
-          if b ~= buf then
-            table.insert(filtered, b)
-          end
-        end
-        core.cache[current_tab] = filtered
       else
-        pcall(vim.api.nvim_buf_delete, buf, { force = false })
+        close_buffer(vim.api.nvim_buf_delete, buf, { force = false })
       end
     end
   end
+  core.revalidate()
 end
 
 return M

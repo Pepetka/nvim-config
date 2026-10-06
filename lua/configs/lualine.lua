@@ -1,4 +1,3 @@
-local merge_tables = require("utils.merge_tables")
 local lualine = require("lualine")
 
 local M = {}
@@ -6,6 +5,24 @@ local M = {}
 function M.setup()
   local colors = require("utils.colors")
   local transparent = "none"
+  local git_roots = {}
+
+  vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "DirChanged" }, {
+    group = vim.api.nvim_create_augroup("LualineGitRootCache", { clear = true }),
+    callback = function(args)
+      if args.event ~= "DirChanged" then
+        git_roots[args.buf] = nil
+      else
+        git_roots = {}
+      end
+    end,
+  })
+  vim.api.nvim_create_autocmd("BufDelete", {
+    group = "LualineGitRootCache",
+    callback = function(args)
+      git_roots[args.buf] = nil
+    end,
+  })
 
   local mode_colors = {
     n = { bg = colors.palette.purple, fg = colors.surface },
@@ -95,9 +112,12 @@ function M.setup()
       return vim.fn.winwidth(0) > 60
     end,
     git_workspace = function()
-      local filepath = vim.fn.expand("%:p:h")
-      local gitdir = vim.fn.finddir(".git", filepath .. ";")
-      return gitdir and #gitdir > 0 and #gitdir < #filepath
+      local buf = vim.api.nvim_get_current_buf()
+      if git_roots[buf] == nil then
+        local name = vim.api.nvim_buf_get_name(buf)
+        git_roots[buf] = name ~= "" and vim.fs.root(name, ".git") or false
+      end
+      return git_roots[buf] ~= false
     end,
     lsp_active = function()
       return next(vim.lsp.get_clients({ bufnr = 0 })) ~= nil
@@ -117,6 +137,16 @@ function M.setup()
       return true
     end
   end
+
+  ---@diagnostic disable-next-line: undefined-field
+  local noice_status = require("noice").api.status
+  local function has_noice_status(status)
+    return function()
+      return conditions.width_gt_80() and status.has()
+    end
+  end
+  local has_mode = has_noice_status(noice_status.mode)
+  local has_search = has_noice_status(noice_status.search)
 
   ---@param component table
   local function ins_left(component)
@@ -149,7 +179,7 @@ function M.setup()
     if opts and opts.left then
       space(false, component.cond)
     end
-    ins_left(merge_tables({
+    ins_left(vim.tbl_extend("force", {
       separator = { left = "" },
       icons_enabled = false,
       padding = { left = 0, right = 1 },
@@ -227,7 +257,7 @@ function M.setup()
         return "No LSP"
       end
 
-      local preferred = { "svelte-language-server", "vtsls", "tsgo" }
+      local preferred = { "svelte", "vtsls", "tsgo" }
       local function supports(client)
         local filetypes = client.config and client.config.filetypes
         return filetypes and vim.tbl_contains(filetypes, buf_ft)
@@ -269,39 +299,27 @@ function M.setup()
   ins_right({
     function()
       ---@diagnostic disable-next-line: undefined-field
-      return require("noice").api.status.mode.get()
+      return noice_status.mode.get()
     end,
-    cond = function()
-      ---@diagnostic disable-next-line: undefined-field
-      return conditions.width_gt_80() and package.loaded.noice and require("noice").api.status.mode.has()
-    end,
+    cond = has_mode,
     color = { fg = colors.surface, bg = colors.palette.yellow },
     separator = { left = "", right = "" },
     padding = { left = 1, right = 1 },
   })
-  space(true, function()
-    ---@diagnostic disable-next-line: undefined-field
-    return conditions.width_gt_80() and package.loaded.noice and require("noice").api.status.mode.has()
-  end)
+  space(true, has_mode)
 
   ins_right({
     function()
       ---@diagnostic disable-next-line: undefined-field
-      local search = require("noice").api.status.search.get()
+      local search = noice_status.search.get()
       return search:match("%[[^%]]+%]") or search
     end,
-    cond = function()
-      ---@diagnostic disable-next-line: undefined-field
-      return conditions.width_gt_80() and package.loaded.noice and require("noice").api.status.search.has()
-    end,
+    cond = has_search,
     color = { fg = colors.surface, bg = colors.palette.cyan },
     separator = { left = "", right = "" },
     padding = { left = 0, right = 0 },
   })
-  space(true, function()
-    ---@diagnostic disable-next-line: undefined-field
-    return conditions.width_gt_80() and package.loaded.noice and require("noice").api.status.search.has()
-  end)
+  space(true, has_search)
 
   ins_right({
     "filetype",

@@ -94,7 +94,6 @@ fzf.setup({
     multiprocess = true,
     file_icons = true,
     git_icons = true,
-    color_icons = true,
     fd_opts = "--color=never --type f --hidden --follow --exclude .git --exclude node_modules --exclude .venv --exclude target --exclude dist --exclude build",
     rg_opts = "--color=never --files --hidden --follow -g '!.git' -g '!node_modules' -g '!.venv' -g '!target' -g '!dist' -g '!build'",
   },
@@ -104,11 +103,8 @@ fzf.setup({
     multiprocess = true,
     file_icons = true,
     git_icons = true,
-    color_icons = true,
     rg_opts = "--column --line-number --no-heading --color=always --smart-case --max-columns=512 --hidden -g '!.git' -g '!node_modules' -g '!.venv' -g '!target' -g '!dist' -g '!build'",
     rg_glob = true,
-    glob_flag = "--iglob",
-    glob_separator = "%s%-%-",
     actions = {
       ["ctrl-g"] = { actions.grep_lgrep },
     },
@@ -116,31 +112,23 @@ fzf.setup({
   buffers = {
     prompt = "Buffers❯ ",
     file_icons = true,
-    color_icons = true,
-    sort_lastused = true,
   },
   oldfiles = {
     prompt = "History❯ ",
     cwd_only = false,
-    stat_file = true,
-    include_current_session = false,
   },
   git = {
     files = {
       prompt = "Git Files❯ ",
-      cmd = "git ls-files --exclude-standard",
       multiprocess = true,
       file_icons = true,
       git_icons = true,
-      color_icons = true,
     },
     status = {
       prompt = "Git Status❯ ",
       cmd = "git status -s",
-      previewer = "git_diff",
       file_icons = true,
       git_icons = true,
-      color_icons = true,
       actions = {
         ["right"] = { actions.git_unstage, actions.resume },
         ["left"] = { actions.git_stage, actions.resume },
@@ -179,7 +167,6 @@ fzf.setup({
     cwd_only = false,
     async_or_timeout = 5000,
     file_icons = true,
-    git_icons = false,
     lsp_icons = true,
     severity = "hint",
     icons = {

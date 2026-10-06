@@ -53,34 +53,71 @@ end
 pcall(vim.api.nvim_del_augroup_by_name, "npm-info")
 
 local group = vim.api.nvim_create_augroup("npm-info-monorepo", { clear = true })
+local checks = {}
+local REFRESH_MS = 2 * 60 * 1000
+
+vim.api.nvim_create_autocmd("BufWipeout", {
+  group = group,
+  callback = function(event)
+    checks[event.buf] = nil
+  end,
+})
 
 vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost" }, {
   group = group,
   pattern = "package.json",
   callback = function(event)
     local bufnr = event.buf
+    local path = vim.api.nvim_buf_get_name(bufnr)
+    local stat = vim.uv.fs_stat(path)
+    local mtime = stat and stat.mtime and (stat.mtime.sec .. ":" .. stat.mtime.nsec) or ""
+    local previous = checks[bufnr]
+    local now = vim.uv.now()
+    if
+      event.event == "BufEnter"
+      and previous
+      and previous.mtime == mtime
+      and now - previous.checked_at < REFRESH_MS
+    then
+      return
+    end
+
+    local check = { mtime = mtime, checked_at = now, tick = vim.api.nvim_buf_get_changedtick(bufnr) }
+    checks[bufnr] = check
     vim.api.nvim_buf_clear_namespace(bufnr, core.namespace, 0, -1)
 
-    local dependencies = core.parse_dependencies(bufnr)
+    local ok, dependencies = pcall(core.parse_dependencies, bufnr)
+    if not ok then
+      checks[bufnr] = nil
+      return
+    end
     if #dependencies == 0 then
       return
     end
 
-    local cwd = vim.fn.fnamemodify(vim.api.nvim_buf_get_name(bufnr), ":h")
+    local cwd = vim.fs.dirname(path)
     local user_config = cfg.get()
+
+    local function show_result(out, kind)
+      vim.schedule(function()
+        if
+          vim.api.nvim_buf_is_valid(bufnr)
+          and checks[bufnr] == check
+          and vim.api.nvim_buf_get_changedtick(bufnr) == check.tick
+        then
+          core.handle_npm_results(out, kind, dependencies, bufnr)
+        end
+      end)
+    end
 
     if user_config.show_installed then
       vim.system({ "npm", "list", "--json", "--depth=0" }, { cwd = cwd }, function(out)
-        vim.schedule(function()
-          core.handle_npm_results(out, "list", dependencies, bufnr)
-        end)
+        show_result(out, "list")
       end)
     end
 
     vim.system({ "npm", "outdated", "--json" }, { cwd = cwd }, function(out)
-      vim.schedule(function()
-        core.handle_npm_results(out, "outdated", dependencies, bufnr)
-      end)
+      show_result(out, "outdated")
     end)
   end,
 })
