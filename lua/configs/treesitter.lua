@@ -51,7 +51,7 @@ ts.setup(ts_config)
 ts.install(parsers)
 
 vim.opt.foldmethod = "expr"
-vim.opt.foldexpr = "v:lua.vim.treesitter.foldexpr()"
+vim.opt.foldexpr = "v:lua.require'utils.folds'.expr()"
 vim.opt.foldlevel = 99
 vim.opt.foldlevelstart = 99
 vim.opt.foldnestmax = 1
@@ -100,7 +100,7 @@ api.nvim_create_autocmd("FileType", {
 
     vim.treesitter.start(args.buf, lang)
 
-    vim.wo[0][0].foldexpr = "v:lua.vim.treesitter.foldexpr()"
+    vim.wo[0][0].foldexpr = "v:lua.require'utils.folds'.expr()"
     vim.wo[0][0].foldmethod = "expr"
     vim.wo[0][0].foldminlines = 4
   end,
