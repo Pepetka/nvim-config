@@ -1,5 +1,7 @@
 local M = {}
 
+M.js_filetypes = { "javascript", "typescript", "javascriptreact", "typescriptreact", "svelte" }
+
 M.oxfmt_configs = {
   ".oxfmtrc.json",
   ".oxfmtrc.jsonc",

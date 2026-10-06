@@ -6,7 +6,7 @@ Personal Neovim configuration (Lua, Neovim 0.12+, `vim.pack`). Targets the live 
 
 - **Plugin manager:** `vim.pack` with lockfile `nvim-pack-lock.json`
 - **LSP:** native `vim.lsp.config` + `mason.nvim` + `mason-lspconfig.nvim`
-- **Completion:** `blink.cmp` (sources: `lazydev`, `lsp`, `path`, `snippets`, `buffer`)
+- **Completion:** `blink.cmp` (sources: `lazydev`, `lsp`, `css_in_js`, `path`, `snippets`, `buffer`)
 - **Fuzzy finder:** `fzf-lua`
 - **File tree:** `nvim-tree.lua`
 - **Status/tab line:** `lualine.nvim` / `bufferline.nvim`
@@ -27,10 +27,10 @@ Plugin groups in `lua/plugins/init.lua` load in order: `shared` → `core` → `
 ## Key Files
 
 - `init.lua` — entry point
-- `lua/options.lua` — `vim.opt` / `vim.g`, including `g.ts_lsp`
+- `lua/options.lua` — `vim.opt` / `vim.g`
 - `lua/mappings.lua` — global leader maps (`<leader>` = space, `<localleader>` = `\`)
 - `lua/core.lua` — autocommands and user commands
-  (`:PackClean`, `:PackUpdate`, `:LspRestart`, `:LspStop`, `:LspStart`, `:TsLspSwitch`)
+  (`:PackClean`, `:PackUpdate`, `:LspRestart`, `:LspStop`, `:LspStart`, `:TsLspSwitch`, `:TsLspAuto`, `:TsLspInfo`)
 - `lua/plugins/groups/*.lua` — plugin specs
 - `lua/configs/*.lua` — per-plugin setup
 - `lsp/*.lua` — server configs loaded by `vim.lsp.config` in `lua/configs/lsp.lua`
@@ -46,7 +46,7 @@ No build step or test suite. When editing the config:
 - `stylua .` — apply formatting
 - `:source %` (`<leader>rs`) — reload current file
 - `:restart` (`<leader>re`) — restart Neovim
-- `:TsLspSwitch` (`<leader>lT`) — toggle between `vtsls` and `tsgo`
+- `:TsLspSwitch` (`<leader>lT`) — override the TS server for the current project; `:TsLspAuto` (`<leader>lA`) restores automatic selection
 - `:PackClean` — remove unused `vim.pack` plugins
 - `:PackUpdate [plugins...][!]` — update plugins
 
@@ -64,11 +64,20 @@ No build step or test suite. When editing the config:
 
 ### LSP Servers
 
-`mason-lspconfig` installs and enables:
-`vtsls`, `tsgo`, `gopls`, `html`, `cssls`, `jsonls`, `lua_ls`, `svelte`, `prismals`, `tailwindcss`, `cssmodules_ls`, `css_variables`.
+`mason-lspconfig` installs:
+`vtsls`, `tsc` (native TypeScript binary), `gopls`, `html`, `cssls`, `jsonls`, `yamlls`, `lua_ls`, `svelte`, `prismals`, `tailwindcss`, `cssmodules_ls`, `css_variables`.
 
-Active TypeScript server is `vim.g.ts_lsp` (`"vtsls"` default). `:TsLspSwitch`
-toggles between `vtsls` and `tsgo` at runtime; only one is enabled at a time.
+`lua/utils/ts_lsp.lua` selects `vtsls` or the native server (`tsgo` config) per project.
+These TS configs are enabled by the config; Mason enables the other installed servers.
+Svelte projects use `vtsls` for tsserver plugin support;
+projects with local TypeScript 7 (including npm aliases) or `tsgo` use the native server when available.
+`:TsLspSwitch` overrides one project for the session; `:TsLspAuto` restores automatic selection and
+`:TsLspInfo` shows the current choice.
+
+CSS-in-JS template completion uses the blink source in `lua/completion/css_in_js.lua` with `cssls`,
+independently of the TS server. `lua/utils/css_in_js.lua` extracts the active template, masks
+`${...}`, and maps completion edits back to the host document. Hidden buffers remain in memory.
+`K` routes CSS hover requests through the same source; outside CSS it uses regular LSP hover.
 
 ### Formatting
 
@@ -85,7 +94,7 @@ toggles between `vtsls` and `tsgo` at runtime; only one is enabled at a time.
 
 `prettierd` runs only when a Prettier config is found. Auto-format on save is
 enabled globally unless disabled with `:FormatDisable` / `:FormatDisable!`;
-re-enable with `:FormatEnable`.
+re-enable globally with `:FormatEnable` or for one buffer with `:FormatEnable!`.
 
 ### Linting
 
@@ -102,8 +111,9 @@ Triggers: `BufWritePost`, `BufReadPost`, `FileType`, `InsertLeave`, `TextChanged
 ## Critical Keymaps
 
 - `<leader>ff` — files, `<leader>fg` — grep, `<leader>fb` — buffers, `<leader>fr` — resume, `<leader>fk` — keymaps (`fzf-lua`)
-- `<leader>e` / `<C-n>` — toggle `nvim-tree`
-- `<leader>lf` — format buffer, `<leader>la` — code action, `<leader>lT` — switch TS LSP
+- `<leader>e` / `<C-n>` — open / toggle `nvim-tree`
+- `<leader>lf` — format buffer, `<leader>lF` — formatting status, `<leader>la` — code action
+- `<leader>lT` / `<leader>lA` / `<leader>lI` — override / restore / inspect project TS LSP
 - `gd`, `gD`, `grr`, `gri`, `grt` — LSP navigation
 - `]d` / `[d` — next / previous diagnostic
 - `<leader>id` / `<leader>ic` / `<leader>ia` / `<leader>ir` — inline diagnostics toggles

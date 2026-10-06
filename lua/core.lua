@@ -55,41 +55,15 @@ vim.o.qftf = "v:lua.user_qf_textfunc"
 
 local BIGFILE_SIZE = 1.5 * 1024 * 1024
 local BIGFILE_LINE_LENGTH = 1000
+local saved_spell = {}
 
-vim.api.nvim_create_autocmd("BufReadPost", {
-  desc = "Disable heavy features for big files",
-  callback = function(args)
-    local buf = args.buf
-    local path = vim.api.nvim_buf_get_name(buf)
-    if path == "" then
-      return
-    end
-
-    local ok, stats = pcall(vim.uv.fs_stat, path)
-    if not ok or not stats then
-      return
-    end
-
-    local is_big = stats.size > BIGFILE_SIZE
-    local line_count = vim.api.nvim_buf_line_count(buf)
-    local is_long_lines = line_count > 0 and (stats.size / line_count) > BIGFILE_LINE_LENGTH
-    if not is_big and not is_long_lines then
-      return
-    end
-
+local function disable_bigfile_features(buf)
+  if not vim.b[buf].bigfile then
     vim.b[buf].bigfile = true
     vim.b[buf].minianimate_disable = true
     vim.b[buf].completion = false
-    vim.b[buf].spell = false
-
-    vim.api.nvim_create_autocmd("LspAttach", {
-      buffer = buf,
-      callback = function(ev)
-        vim.schedule(function()
-          vim.lsp.buf_detach_client(ev.buf, ev.data.client_id)
-        end)
-      end,
-    })
+    vim.b[buf].matchparen_timeout = 1
+    vim.b[buf].matchparen_insert_timeout = 1
 
     vim.schedule(function()
       if vim.api.nvim_buf_is_valid(buf) then
@@ -98,11 +72,74 @@ vim.api.nvim_create_autocmd("BufReadPost", {
       end
     end)
 
-    if vim.fn.exists(":NoMatchParen") ~= 0 then
-      vim.cmd("NoMatchParen")
-    end
-
     vim.notify("Big file detected. Heavy features disabled.", vim.log.levels.INFO)
+  end
+
+  for _, win in ipairs(vim.fn.win_findbuf(buf)) do
+    if saved_spell[win] == nil then
+      saved_spell[win] = vim.wo[win].spell
+    end
+    vim.wo[win].spell = false
+  end
+  for _, client in ipairs(vim.lsp.get_clients({ bufnr = buf })) do
+    vim.lsp.buf_detach_client(buf, client.id)
+  end
+end
+
+vim.api.nvim_create_autocmd("BufReadPre", {
+  desc = "Detect large files before heavy features start",
+  callback = function(args)
+    local stats = vim.uv.fs_stat(args.file)
+    if stats and stats.size > BIGFILE_SIZE then
+      disable_bigfile_features(args.buf)
+    end
+  end,
+})
+
+vim.api.nvim_create_autocmd("BufReadPost", {
+  desc = "Detect long lines in files",
+  callback = function(args)
+    if vim.b[args.buf].bigfile then
+      return
+    end
+    local stats = vim.uv.fs_stat(args.file)
+    local line_count = vim.api.nvim_buf_line_count(args.buf)
+    if stats and line_count > 0 and stats.size / line_count > BIGFILE_LINE_LENGTH then
+      disable_bigfile_features(args.buf)
+    end
+  end,
+})
+
+vim.api.nvim_create_autocmd("BufWinEnter", {
+  desc = "Keep spell checking disabled in big-file windows",
+  callback = function(args)
+    if vim.b[args.buf].bigfile then
+      disable_bigfile_features(args.buf)
+    end
+  end,
+})
+
+vim.api.nvim_create_autocmd("BufWinLeave", {
+  desc = "Restore spell checking after leaving a big file",
+  callback = function(args)
+    local win = vim.api.nvim_get_current_win()
+    if vim.b[args.buf].bigfile and saved_spell[win] ~= nil then
+      vim.wo[win].spell = saved_spell[win]
+      saved_spell[win] = nil
+    end
+  end,
+})
+
+vim.api.nvim_create_autocmd("LspAttach", {
+  desc = "Detach LSP clients that attach to big files",
+  callback = function(args)
+    if vim.b[args.buf].bigfile then
+      vim.schedule(function()
+        if vim.api.nvim_buf_is_valid(args.buf) then
+          vim.lsp.buf_detach_client(args.buf, args.data.client_id)
+        end
+      end)
+    end
   end,
 })
 
@@ -245,11 +282,13 @@ vim.api.nvim_create_user_command("LspStart", function(opts)
 end, { desc = "Start LSP server", nargs = "?" })
 
 vim.api.nvim_create_user_command("TsLspSwitch", function()
-  local current = vim.g.ts_lsp or "vtsls"
-  local next_lsp = current == "vtsls" and "tsgo" or "vtsls"
-  vim.g.ts_lsp = next_lsp
+  require("utils.ts_lsp").switch()
+end, { desc = "Switch TypeScript LSP for the current project" })
 
-  vim.lsp.enable(current, false)
-  vim.lsp.enable(next_lsp, true)
-  vim.notify("Switched TypeScript LSP to " .. next_lsp, vim.log.levels.INFO)
-end, { desc = "Switch between vtsls and tsgo" })
+vim.api.nvim_create_user_command("TsLspAuto", function()
+  require("utils.ts_lsp").auto()
+end, { desc = "Restore automatic TypeScript LSP selection for the current project" })
+
+vim.api.nvim_create_user_command("TsLspInfo", function()
+  require("utils.ts_lsp").info()
+end, { desc = "Show the TypeScript LSP choice for the current project" })

@@ -58,7 +58,6 @@ vim.opt.foldnestmax = 1
 vim.opt.foldminlines = 4
 vim.opt.foldcolumn = "2"
 vim.opt.foldtext = ""
-vim.opt.fillchars:append({ fold = " " })
 
 local ts_filetypes = {
   "bash",
@@ -67,7 +66,7 @@ local ts_filetypes = {
   "go",
   "html",
   "javascript",
-  "javasriptreact",
+  "javascriptreact",
   "json",
   "lua",
   "markdown",
@@ -89,7 +88,7 @@ api.nvim_create_autocmd("FileType", {
   group = api.nvim_create_augroup("TreesitterSetup", { clear = true }),
   pattern = ts_filetypes,
   callback = function(args)
-    if vim.bo[args.buf].buftype ~= "" then
+    if vim.bo[args.buf].buftype ~= "" or vim.b[args.buf].bigfile then
       return
     end
 

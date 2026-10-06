@@ -134,49 +134,43 @@ Most linters and formatters can also be installed through `:Mason` after first l
 
 #### Fuzzy finder and previews
 
-| Tool | Purpose |
-|------|---------|
-| `fzf` | Fuzzy matching backend for `fzf-lua` |
-| `fd` / `fdfind` | Fast file listing for `fzf-lua` |
-| `rg` (ripgrep) | Live grep and file search |
-| `bat` | Syntax-highlighted previews |
-| `delta` | Pretty git diff previews |
+| Tool            | Purpose                              |
+| --------------- | ------------------------------------ |
+| `fzf`           | Fuzzy matching backend for `fzf-lua` |
+| `fd` / `fdfind` | Fast file listing for `fzf-lua`      |
+| `rg` (ripgrep)  | Live grep and file search            |
+| `bat`           | Syntax-highlighted previews          |
+| `delta`         | Pretty git diff previews             |
 
 #### Language servers and runtimes
 
-| Tool | Purpose |
-|------|---------|
+| Tool          | Purpose                                                         |
+| ------------- | --------------------------------------------------------------- |
 | `node`, `npm` | JS/TS LSPs, debug adapter, and Mason installs (nvm recommended) |
-| `go` | `gopls` language server |
-| `python` | Python language server support |
-
-#### Language server plugins
-
-| Tool | Purpose |
-|------|---------|
-| `@styled/typescript-styled-plugin` | CSS-in-JS support for styled-components / Emotion in `vtsls` (`npm install -g`) |
+| `go`          | `gopls` language server                                         |
+| `python`      | Python language server support                                  |
 
 #### Linters and formatters (also available via `:Mason`)
 
-| Tool | Purpose |
-|------|---------|
-| `ruff` | Python formatting and linting |
-| `jq` | JSON formatting fallback |
-| `shfmt`, `shellcheck` | Shell formatting and linting |
-| `prettier`, `eslint_d` | JS/TS/CSS formatting and linting fallback |
-| `oxlint`, `oxfmt` | Preferred JS/TS linter and formatter when Oxc configs are present |
-| `markdownlint` / `markdownlint-cli2` | Markdown linting |
+| Tool                                 | Purpose                                                           |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| `ruff`                               | Python formatting and linting                                     |
+| `jq`                                 | JSON formatting fallback                                          |
+| `shfmt`, `shellcheck`                | Shell formatting and linting                                      |
+| `prettier`, `eslint_d`               | JS/TS/CSS formatting and linting fallback                         |
+| `oxlint`, `oxfmt`                    | Preferred JS/TS linter and formatter when Oxc configs are present |
+| `markdownlint` / `markdownlint-cli2` | Markdown linting                                                  |
 
 #### Debug adapters
 
-| Tool | Purpose |
-|------|---------|
+| Tool               | Purpose                                               |
+| ------------------ | ----------------------------------------------------- |
 | `js-debug-adapter` | JS/TS debugging via `nvim-dap` (install via `:Mason`) |
 
 #### Other
 
-| Tool | Purpose |
-|------|---------|
+| Tool        | Purpose                          |
+| ----------- | -------------------------------- |
 | ImageMagick | Image previews via `snacks.nvim` |
 
 On macOS with Homebrew, a typical starting set is:
@@ -246,31 +240,34 @@ Install it first (or alongside this config) for the best results.
 This config is primarily tuned for web and systems development. The following
 languages have LSP, Treesitter, and formatting/linting support out of the box:
 
-| Language | LSP server | Notes |
-|----------|------------|-------|
-| TypeScript / TSX | `vtsls` or `tsgo` | Switch with `:TsLspSwitch` |
-| JavaScript / JSX | `vtsls` / `tsgo` | Shared with TypeScript server |
-| Svelte | `svelte` | |
-| HTML | `html` | |
-| CSS / SCSS / Less | `cssls` + `tailwindcss` | CSS Modules and CSS Variables support |
-| JSON / JSONC | `jsonls` | |
-| Go | `gopls` | |
-| Lua | `lua_ls` | |
-| Python | `ruff` | Via Mason / system `ruff` |
-| Prisma | `prismals` | |
-| Shell (sh/bash/zsh) | — | `shfmt` + `shellcheck` |
-| Markdown | — | `markdownlint` |
-| Rust | — | Treesitter support |
-| YAML / TOML / XML | — | Treesitter support |
+| Language            | LSP server                            | Notes                                             |
+| ------------------- | ------------------------------------- | ------------------------------------------------- |
+| TypeScript / TSX    | `vtsls` or native TypeScript (`tsgo`) | Chosen per project; `:TsLspInfo` shows the choice |
+| JavaScript / JSX    | `vtsls` / native TypeScript           | Shared with TypeScript server                     |
+| Svelte              | `svelte`                              |                                                   |
+| HTML                | `html`                                |                                                   |
+| CSS / SCSS / Less   | `cssls` + `tailwindcss`               | CSS Modules and CSS Variables support             |
+| JSON / JSONC        | `jsonls`                              |                                                   |
+| Go                  | `gopls`                               |                                                   |
+| Lua                 | `lua_ls`                              |                                                   |
+| Python              | `ruff`                                | Via Mason / system `ruff`                         |
+| Prisma              | `prismals`                            |                                                   |
+| Shell (sh/bash/zsh) | —                                     | `shfmt` + `shellcheck`                            |
+| Markdown            | —                                     | `markdownlint`                                    |
+| Rust                | —                                     | Treesitter support                                |
+| YAML / TOML / XML   | —                                     | Treesitter support                                |
 
-For CSS-in-JS support (styled-components, Emotion) with `vtsls`, install the TypeScript plugin globally:
+CSS-in-JS template literals (styled-components / Emotion) use a dedicated `blink.cmp` source with `cssls`,
+independently of the TypeScript server. CSS properties and values complete inside `styled`,
+`css`, `keyframes`, and `createGlobalStyle` templates, while `${...}` retains TypeScript completion.
+Hidden CSS buffers stay in memory; CSS diagnostics are disabled for these generated documents.
+`K` shows CSS hover documentation inside templates and regular LSP documentation inside `${...}`.
+Object styles rely on the library's TypeScript types.
 
-```bash
-npm install -g @styled/typescript-styled-plugin
-```
-
-`tsgo` does not support tsserver plugins (for example styled-components or Svelte), so switch back to `vtsls`
-when you need those features.
+Svelte projects use `vtsls` for tsserver plugin support. Other projects use the
+native server when a local TypeScript 7 compiler (including an npm alias) or `tsgo` is available;
+otherwise they use `vtsls`. `:TsLspSwitch` overrides the choice for the current project during this
+Neovim session, `:TsLspAuto` restores automatic selection, and `:TsLspInfo` shows the chosen server and command.
 
 Additional Treesitter parsers are installed for syntax highlighting and folding.
 
@@ -305,48 +302,50 @@ Additional Treesitter parsers are installed for syntax highlighting and folding.
 
 Leader is `<Space>`, local leader is `\`.
 
-| Binding | Action |
-|----------|----------|
-| `<leader>ff` | Find files |
-| `<leader>fg` | Live grep |
-| `<leader>fb` | Buffers |
-| `<leader>fr` | Resume last picker |
-| `<leader>fk` | Keymaps |
-| `<leader>ch` | Toggle interactive cheatsheet |
-| `s` + two characters | Leap to target |
-| `<leader>e`, `<C-n>` | Toggle file tree |
-| `<leader>go` | Open diffview |
-| `<leader>lf` | Format buffer |
-| `<leader>la` | Code action |
-| `<leader>lT` | Switch TypeScript LSP (`vtsls` / `tsgo`) |
-| `gd`, `gD`, `grr`, `gri`, `grt` | LSP navigation |
-| `]d`, `[d` | Next / previous diagnostic |
-| `<leader>id` | Toggle inline diagnostics |
-| `<leader>qd` | Buffer diagnostics (Trouble) |
-| `<leader>qx` | Workspace diagnostics (Trouble) |
-| `<leader>x` | Close current buffer |
-| `<leader>cx` | Close all buffers except current |
-| `<C-f>` | Toggle floating terminal |
-| `<leader>ut` | Toggle undo tree |
-| `<leader>ui` | Toggle inlay hints |
-| `<leader>nH` | Notification history |
-| `<leader>nh` | Message history (Noice) |
-| `<leader>dc` | Start / continue debugging |
-| `<leader>db` | Toggle breakpoint |
-| `<leader>dv` | Toggle debug view |
-| `<leader>dt` | Terminate debugging |
-| `<leader>dr` | Toggle debug REPL |
-| `<leader>ld` | Floating diagnostic for current line |
-| `]h`, `[h` | Next / previous git hunk |
-| `<leader>hp` | Preview git hunk |
-| `<leader>hb` | Blame line |
-| `<leader>fh` | Help tags |
-| `<leader>fo` | Recent files |
-| `<leader>qf` | Find TODOs |
-| `<leader>qt` | Open TODOs in Trouble |
-| `<leader>ic` | Toggle cursor diagnostic |
-| `<leader>mp` | Start live preview |
-| `<leader>mi` | Hover image under cursor |
+| Binding                         | Action                                     |
+| ------------------------------- | ------------------------------------------ |
+| `<leader>ff`                    | Find files                                 |
+| `<leader>fg`                    | Live grep                                  |
+| `<leader>fb`                    | Buffers                                    |
+| `<leader>fr`                    | Resume last picker                         |
+| `<leader>fk`                    | Keymaps                                    |
+| `<leader>ch`                    | Toggle interactive cheatsheet              |
+| `s` + two characters            | Leap to target                             |
+| `<leader>e` / `<C-n>`           | Open / toggle file tree                    |
+| `<leader>go`                    | Open diffview                              |
+| `<leader>lf`                    | Format buffer                              |
+| `<leader>lF`                    | Show formatting status                     |
+| `<leader>la`                    | Code action                                |
+| `<leader>lT`                    | Switch TypeScript LSP for current project  |
+| `<leader>lA` / `<leader>lI`     | Restore automatic TS LSP / show its status |
+| `gd`, `gD`, `grr`, `gri`, `grt` | LSP navigation                             |
+| `]d`, `[d`                      | Next / previous diagnostic                 |
+| `<leader>id`                    | Toggle inline diagnostics                  |
+| `<leader>qd`                    | Buffer diagnostics (Trouble)               |
+| `<leader>qx`                    | Workspace diagnostics (Trouble)            |
+| `<leader>x`                     | Close current buffer                       |
+| `<leader>cx`                    | Close all buffers except current           |
+| `<C-f>`                         | Toggle floating terminal                   |
+| `<leader>ut`                    | Toggle undo tree                           |
+| `<leader>ui`                    | Toggle inlay hints                         |
+| `<leader>nH`                    | Notification history                       |
+| `<leader>nh`                    | Message history (Noice)                    |
+| `<leader>dc`                    | Start / continue debugging                 |
+| `<leader>db`                    | Toggle breakpoint                          |
+| `<leader>dv`                    | Toggle debug view                          |
+| `<leader>dt`                    | Terminate debugging                        |
+| `<leader>dr`                    | Toggle debug REPL                          |
+| `<leader>ld`                    | Floating diagnostic for current line       |
+| `]h`, `[h`                      | Next / previous git hunk                   |
+| `<leader>hp`                    | Preview git hunk                           |
+| `<leader>hb`                    | Blame line                                 |
+| `<leader>fh`                    | Help tags                                  |
+| `<leader>fo`                    | Recent files                               |
+| `<leader>qf`                    | Find TODOs                                 |
+| `<leader>qt`                    | Open TODOs in Trouble                      |
+| `<leader>ic`                    | Toggle cursor diagnostic                   |
+| `<leader>mp`                    | Start live preview                         |
+| `<leader>mi`                    | Hover image under cursor                   |
 
 For the full list, see `lua/mappings.lua` and `lua/configs/*.lua`.
 

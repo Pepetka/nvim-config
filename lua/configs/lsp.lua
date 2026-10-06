@@ -57,6 +57,31 @@ end
 -- Inlay hints are enabled globally; toggle with <leader>ui
 vim.lsp.inlay_hint.enable(true)
 
+-- Notify only Svelte servers whose workspace contains the saved JS/TS file.
+vim.api.nvim_create_autocmd("BufWritePost", {
+  group = vim.api.nvim_create_augroup("SvelteTsFileChanges", { clear = true }),
+  pattern = { "*.js", "*.ts" },
+  callback = function(args)
+    local path = vim.api.nvim_buf_get_name(args.buf)
+    local uri = vim.uri_from_fname(path)
+    for _, client in ipairs(vim.lsp.get_clients({ name = "svelte" })) do
+      local roots = {}
+      if client.config.root_dir then
+        roots[#roots + 1] = client.config.root_dir
+      end
+      for _, folder in ipairs(client.workspace_folders or {}) do
+        roots[#roots + 1] = vim.uri_to_fname(folder.uri)
+      end
+      for _, root in ipairs(roots) do
+        if vim.fs.relpath(root, path) then
+          client:notify("$/onDidChangeTsOrJsFile", { uri = uri })
+          break
+        end
+      end
+    end
+  end,
+})
+
 vim.api.nvim_create_autocmd("LspAttach", {
   group = vim.api.nvim_create_augroup("UserLspConfig", { clear = true }),
   callback = function(args)
@@ -64,19 +89,6 @@ vim.api.nvim_create_autocmd("LspAttach", {
     local client = vim.lsp.get_client_by_id(args.data.client_id)
     if not client then
       return
-    end
-
-    -- Svelte: workaround to trigger reloading JS/TS files
-    -- See https://github.com/sveltejs/language-tools/issues/2008
-    if client.name == "svelte" then
-      vim.api.nvim_create_autocmd("BufWritePost", {
-        pattern = { "*.js", "*.ts" },
-        group = vim.api.nvim_create_augroup("lspconfig.svelte", {}),
-        callback = function(ctx)
-          ---@diagnostic disable-next-line: param-type-mismatch
-          client:notify("$/onDidChangeTsOrJsFile", { uri = ctx.match })
-        end,
-      })
     end
 
     -- CSS Modules: avoid conflicts with TypeScript LSP's go-to-definition
@@ -106,7 +118,9 @@ vim.api.nvim_create_autocmd("LspAttach", {
     map("n", "gri", vim.lsp.buf.implementation, opts("Implementation"))
     map("n", "grt", vim.lsp.buf.type_definition, opts("Type Definition"))
 
-    map("n", "K", vim.lsp.buf.hover, opts("Hover Documentation"))
+    map("n", "K", function()
+      require("completion.css_in_js").hover()
+    end, opts("Hover Documentation"))
     map("n", "grn", vim.lsp.buf.rename, opts("Rename Symbol"))
     map({ "n", "v" }, "<leader>la", vim.lsp.buf.code_action, opts("Code Action"))
 

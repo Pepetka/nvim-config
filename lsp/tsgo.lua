@@ -1,15 +1,33 @@
--- Experimental Go-native TypeScript language server from Microsoft.
--- Install via Mason (`:MasonInstall tsgo`) or npm:
---   npm install -D @typescript/native-preview
---
--- Switch between vtsls and tsgo with `vim.g.ts_lsp` in lua/options.lua.
--- Note: tsgo does not support tsserver plugins (e.g. Svelte / styled-components).
+-- Native TypeScript server selected per project by utils.ts_lsp.
+-- Note: tsgo does not support tsserver plugins (e.g. Svelte).
+-- CSS-in-JS completion is provided independently by a blink source + cssls.
 --
 -- Upstream reference:
 -- https://github.com/neovim/nvim-lspconfig/blob/master/lsp/tsgo.lua
 
 ---@type vim.lsp.Config
 return {
+  root_dir = require("utils.ts_lsp").root_dir("tsgo"),
+  handlers = {
+    ["textDocument/inlayHint"] = function(err, result, ctx)
+      if result then
+        for _, hint in ipairs(result) do
+          local label = hint.label
+          if type(label) == "table" then
+            label = table.concat(vim.tbl_map(function(part)
+              return part.value
+            end, label))
+          end
+
+          if vim.fn.strchars(label) > 30 then
+            hint.label = vim.fn.strcharpart(label, 0, 29) .. "…"
+          end
+        end
+      end
+
+      return vim.lsp.inlay_hint.on_inlayhint(err, result, ctx)
+    end,
+  },
   settings = {
     typescript = {
       updateImportsOnFileMove = { enabled = "always" },
@@ -53,14 +71,9 @@ return {
     },
   },
   cmd = function(dispatchers, config_ctx)
-    local cmd = "tsc"
-    if (config_ctx or {}).root_dir then
-      local local_cmd = vim.fs.joinpath(config_ctx.root_dir, "node_modules/.bin", cmd)
-      if vim.fn.executable(local_cmd) == 1 then
-        cmd = local_cmd
-      end
-    end
-    return vim.lsp.rpc.start({ cmd, "--lsp", "--stdio" }, dispatchers)
+    local command =
+      assert(require("utils.ts_lsp").native_command(config_ctx.root_dir), "Native TypeScript is unavailable")
+    return vim.lsp.rpc.start(command, dispatchers)
   end,
   filetypes = {
     "javascript",
@@ -69,15 +82,5 @@ return {
     "typescript",
     "typescriptreact",
     "typescript.tsx",
-  },
-  root_markers = {
-    "package-lock.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    "bun.lockb",
-    "bun.lock",
-    "tsconfig.json",
-    "jsconfig.json",
-    ".git",
   },
 }
