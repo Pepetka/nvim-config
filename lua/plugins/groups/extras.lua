@@ -4,7 +4,7 @@ add({
   "https://github.com/uga-rosa/translate.nvim",
   "https://github.com/brianhuster/live-preview.nvim",
   "https://github.com/pxnditxyr/npm-info.nvim",
-  "https://git.barrettruth.com/barrettruth/import-cost.nvim",
+  "https://forge.barrettruth.com/barrettruth/import-cost.nvim",
 })
 
 require("configs.translate")

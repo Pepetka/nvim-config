@@ -12,7 +12,7 @@ opt.sidescrolloff = 8 -- Keep at least 8 columns visible left/right of cursor
 opt.colorcolumn = "120" -- Visual guide at column 120
 opt.signcolumn = "yes" -- Always show the sign column (for git/diagnostics)
 -- Keep the native columns, but draw fold indicators only on actual buffer rows.
-opt.statuscolumn = "%{%v:virtnum == 0 ? '%C' : repeat(' ', str2nr(&foldcolumn))%}%s%l"
+opt.statuscolumn = "%{%v:virtnum == 0 ? '%C' : repeat(' ', str2nr(&foldcolumn))%}%s%l%{&nu || &rnu ? ' ' : ''}"
 -- opt.guicursor = "" -- Use terminal default cursor style in all modes
 opt.startofline = false -- Preserve horizontal cursor position on C-d/C-u
 
