@@ -20,8 +20,6 @@ add({
   "https://github.com/windwp/nvim-ts-autotag",
   "https://github.com/folke/ts-comments.nvim",
   "https://github.com/nvim-mini/mini.cursorword",
-  -- "https://github.com/milanglacier/minuet-ai.nvim",
-  -- "https://github.com/monkoose/neocodeium",
   "https://github.com/Exafunction/windsurf.nvim",
   "https://github.com/tiagovla/scope.nvim",
   "https://github.com/mfussenegger/nvim-dap",
@@ -46,8 +44,6 @@ require("configs.autotag")
 require("configs.ts_comments")
 require("configs.cursorword")
 require("configs.ai")
--- require("configs.minuet")
--- require("configs.neocodeium")
 require("configs.windsurf")
 require("configs.scope")
 require("configs.dap")
