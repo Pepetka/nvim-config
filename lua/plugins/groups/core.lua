@@ -9,6 +9,11 @@ add({
   "https://github.com/mfussenegger/nvim-lint",
 })
 
+vim.cmd.packadd("css-in-js.nvim")
+require("configs.css_in_js")
+vim.cmd.packadd("stable-folds.nvim")
+require("configs.stable_folds")
+
 require("configs.treesitter")
 require("configs.mason")
 require("configs.lsp")

@@ -40,6 +40,12 @@ Plugin groups in `lua/plugins/init.lua` load in order: `shared` → `core` → `
 - `lua/configs/package_info.lua` — package-info setup
 - `pack/local/opt/tab-buffers.nvim/` — tab-local buffer ownership, safe closure, bufferline/fzf/Diffview integrations and tests
 - `lua/configs/tab_buffers.lua` — tab-buffers setup and buffer mappings
+- `pack/local/opt/css-in-js.nvim/` — CSS template completion/hover, extraction, injection queries and tests
+- `lua/configs/css_in_js.lua` — CSS-in-JS filter and styled parser revision
+- `pack/local/opt/stable-folds.nvim/` — synchronous fold boundaries, stable closed state and tests
+- `lua/configs/stable_folds.lua` — folding setup and personal fold options
+- `pack/local/opt/cheatsheet.nvim/` — interactive keymap browser and tests
+- `lua/configs/cheatsheet.lua` — personal keymap groups and opening mapping
 - `nvim-pack-lock.json` — pinned plugin revisions
 - `stylua.toml` — formatter config (120 cols, 2 spaces, Unix endings, AutoPreferDouble)
 
@@ -90,8 +96,8 @@ Tailwind LSP starts when an ancestor `package.json` declares `tailwindcss` in
 `dependencies` or `devDependencies`; the search stops at the Git root and supports workspace-level dependencies.
 The server detects v3 configs and v4 CSS entrypoints itself.
 
-CSS-in-JS template completion uses the blink source in `lua/completion/css_in_js.lua` with `cssls`,
-independently of the TS server. `lua/utils/css_in_js.lua` extracts the active template, masks
+CSS-in-JS template completion uses the local `css-in-js.nvim` Blink source (`css_in_js`) with `cssls`,
+independently of the TS server. Its `css_in_js.regions` module extracts the active template, masks
 `${...}`, and maps completion edits back to the host document. Hidden buffers remain in memory.
 `K` routes CSS hover requests through the same source; outside CSS it uses regular LSP hover.
 
@@ -176,6 +182,9 @@ For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
   `utils.theme_highlights`. Self-contained local plugins should handle `ColorScheme` with their own autocommand.
 - Run `stylua .` before committing Lua changes.
 - Test changes inside Neovim. For package-info, also run the Node built-in tests described in its plugin README.
+- For CSS-in-JS, stable-folds and cheatsheet, run the headless tests described in each local plugin README.
+  CSS-in-JS owns the supplemental injection queries; the host config owns the styled parser pin.
+  Stable-folds owns the fold expression and refresh handlers; personal fold options stay in its host config.
 - For tab-buffers, run the core, Neovim adapter, UI and Diffview integration tests described in its README.
   Diffview tabs are excluded reviews; `gf` opens the local file in an ordinary tab and `<C-w>gf` creates one.
   Use its public API for tab-local navigation, sorting and closure; native buffer commands still use the global list.

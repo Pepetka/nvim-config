@@ -1,18 +1,43 @@
-local css = require("utils.css_in_js")
+local css = require("css_in_js.regions")
 local api = vim.api
 local M = {}
 local documents = {}
 
-api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
-  group = api.nvim_create_augroup("CssInJsDocuments", { clear = true }),
-  callback = function(args)
-    local document = documents[args.buf]
-    documents[args.buf] = nil
-    if document and api.nvim_buf_is_valid(document.buf) then
-      api.nvim_buf_delete(document.buf, { force = true })
-    end
-  end,
-})
+---@param opts? { filter?: fun(buf: integer): boolean, styled_parser?: table }
+function M.setup(opts)
+  opts = opts or {}
+  css.setup(opts)
+  if opts.styled_parser then
+    require("css_in_js.treesitter").setup(opts.styled_parser)
+  end
+  api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+    group = api.nvim_create_augroup("CssInJsDocuments", { clear = true }),
+    callback = function(args)
+      local document = documents[args.buf]
+      documents[args.buf] = nil
+      if document and api.nvim_buf_is_valid(document.buf) then
+        api.nvim_buf_delete(document.buf, { force = true })
+      end
+    end,
+  })
+end
+
+-- Public helpers for host completion integrations.
+M.context = css.context
+M.supports_buffer = css.supports_buffer
+
+---@param ctx table
+---@param items table[]
+---@return table[]
+function M.filter_lsp_items(ctx, items)
+  if not css.context(ctx.bufnr, ctx.cursor[1] - 1, ctx.cursor[2]) then
+    return items
+  end
+  return vim.tbl_filter(function(item)
+    local client = vim.lsp.get_client_by_id(item.client_id)
+    return not client or (client.name ~= "tsgo" and client.name ~= "vtsls")
+  end, items)
+end
 
 function M.new()
   return setmetatable({}, { __index = M })

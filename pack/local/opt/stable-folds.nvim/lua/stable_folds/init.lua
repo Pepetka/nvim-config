@@ -3,6 +3,19 @@ local api = vim.api
 local cache = {}
 local namespace = api.nvim_create_namespace("StableFoldStarts")
 local tracked = {}
+local filter = function()
+  return true
+end
+
+M.foldexpr = "v:lua.require'stable_folds'.expr()"
+
+---Enable this expression in a window; other fold options remain caller-owned.
+---@param win? integer
+function M.attach(win)
+  win = win or 0
+  vim.wo[win].foldexpr = M.foldexpr
+  vim.wo[win].foldmethod = "expr"
+end
 
 -- Native Tree-sitter folding shifts cached levels before an asynchronous parse.
 -- An edit at a closed fold boundary can therefore temporarily fold unrelated text.
@@ -117,7 +130,7 @@ end
 ---@return string
 function M.expr(line)
   local buf = api.nvim_get_current_buf()
-  if vim.bo[buf].buftype ~= "" or vim.b[buf].bigfile then
+  if vim.bo[buf].buftype ~= "" or not filter(buf) then
     return "0"
   end
 
@@ -146,44 +159,51 @@ function M.expr(line)
   return entry.levels[line or vim.v.lnum] or "0"
 end
 
-local group = api.nvim_create_augroup("SynchronousFolds", { clear = true })
+---Register refresh/cleanup handlers. Repeated setup replaces the handlers.
+---@param opts? { filter?: fun(buf: integer): boolean }
+function M.setup(opts)
+  filter = opts and opts.filter or function()
+    return true
+  end
+  local group = api.nvim_create_augroup("SynchronousFolds", { clear = true })
 
-api.nvim_create_autocmd({ "TextChanged", "InsertLeave", "BufWritePost" }, {
-  group = group,
-  desc = "Refresh complete fold boundaries after editing",
-  callback = function(args)
-    for _, win in ipairs(vim.fn.win_findbuf(args.buf)) do
-      if vim.wo[win].foldmethod == "expr" and vim.wo[win].foldexpr == "v:lua.require'utils.folds'.expr()" then
-        -- Native incremental folding can stop at an unchanged level even when
-        -- the rest of a syntax node moved. Reassigning the method refreshes all
-        -- lines while retaining manually opened/closed folds (unlike zx/zX).
-        api.nvim_win_call(win, function()
-          vim.wo.foldmethod = "expr"
-          for _, mark in ipairs((tracked[args.buf] or {}).marks or {}) do
-            if mark.new then
-              local position = api.nvim_buf_get_extmark_by_id(args.buf, namespace, mark.id, {})
-              local line = position[1] and position[1] + 1
-              if line and vim.fn.foldclosed(line) == line then
-                vim.cmd(line .. "foldopen!")
+  api.nvim_create_autocmd({ "TextChanged", "InsertLeave", "BufWritePost" }, {
+    group = group,
+    desc = "Refresh complete fold boundaries after editing",
+    callback = function(args)
+      for _, win in ipairs(vim.fn.win_findbuf(args.buf)) do
+        if vim.wo[win].foldmethod == "expr" and vim.wo[win].foldexpr == M.foldexpr then
+          -- Native incremental folding can stop at an unchanged level even when
+          -- the rest of a syntax node moved. Reassigning the method refreshes all
+          -- lines while retaining manually opened/closed folds (unlike zx/zX).
+          api.nvim_win_call(win, function()
+            vim.wo.foldmethod = "expr"
+            for _, mark in ipairs((tracked[args.buf] or {}).marks or {}) do
+              if mark.new then
+                local position = api.nvim_buf_get_extmark_by_id(args.buf, namespace, mark.id, {})
+                local line = position[1] and position[1] + 1
+                if line and vim.fn.foldclosed(line) == line then
+                  vim.cmd(line .. "foldopen!")
+                end
               end
             end
-          end
-        end)
+          end)
+        end
       end
-    end
-    for _, mark in ipairs((tracked[args.buf] or {}).marks or {}) do
-      mark.new = false
-    end
-  end,
-})
+      for _, mark in ipairs((tracked[args.buf] or {}).marks or {}) do
+        mark.new = false
+      end
+    end,
+  })
 
-api.nvim_create_autocmd({ "BufUnload", "FileType" }, {
-  group = group,
-  callback = function(args)
-    cache[args.buf] = nil
-    tracked[args.buf] = nil
-    api.nvim_buf_clear_namespace(args.buf, namespace, 0, -1)
-  end,
-})
+  api.nvim_create_autocmd({ "BufUnload", "FileType" }, {
+    group = group,
+    callback = function(args)
+      cache[args.buf] = nil
+      tracked[args.buf] = nil
+      api.nvim_buf_clear_namespace(args.buf, namespace, 0, -1)
+    end,
+  })
+end
 
 return M

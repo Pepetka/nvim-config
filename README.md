@@ -316,6 +316,14 @@ and are cached between Neovim sessions. Its setup is in [`lua/configs/package_in
 Commands: `:PackageInfo`, `:PackageInfoRefresh[!]`, `:PackageInfoToggle`, `:PackageInfoStatus`.
 See the [plugin README](pack/local/opt/package-info.nvim/README.md) for behavior, requirements and test commands.
 
+[`css-in-js.nvim`](pack/local/opt/css-in-js.nvim/README.md) provides CSS template completion and hover,
+including template extraction, LSP edit mapping and supplemental injection queries.
+[`stable-folds.nvim`](pack/local/opt/stable-folds.nvim/README.md) computes synchronous Tree-sitter folds
+and preserves closed fold state across edits.
+[`cheatsheet.nvim`](pack/local/opt/cheatsheet.nvim/README.md) implements the interactive keymap browser.
+Personal setup remains in `lua/configs/css_in_js.lua`, `stable_folds.lua` and `cheatsheet.lua`.
+Each plugin has headless Neovim tests described in its README.
+
 ## Key bindings
 
 Leader is `<Space>`, local leader is `\`.

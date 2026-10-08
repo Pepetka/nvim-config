@@ -1,9 +1,19 @@
 local M = {}
 local api = vim.api
+local filter = function()
+  return true
+end
 local filetypes = { javascript = true, javascriptreact = true, typescript = true, typescriptreact = true }
 
+---@param opts? { filter?: fun(buf: integer): boolean }
+function M.setup(opts)
+  filter = opts and opts.filter or function()
+    return true
+  end
+end
+
 function M.supports_buffer(buf)
-  return filetypes[vim.bo[buf].filetype] and vim.bo[buf].buftype == "" and not vim.b[buf].bigfile
+  return filetypes[vim.bo[buf].filetype] and vim.bo[buf].buftype == "" and filter(buf)
 end
 
 -- Use the host syntax tree so ${...} stays with the TypeScript server.

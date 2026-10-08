@@ -70,6 +70,7 @@ function M.create_float(config)
   local buf = api.nvim_create_buf(false, true)
   api.nvim_set_option_value("buftype", "nofile", { buf = buf })
   api.nvim_set_option_value("buflisted", false, { buf = buf })
+  api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
   api.nvim_set_option_value("filetype", "cheatsheet", { buf = buf })
   api.nvim_set_option_value("modifiable", true, { buf = buf })
 

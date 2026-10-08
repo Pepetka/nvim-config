@@ -119,7 +119,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
     map("n", "grt", vim.lsp.buf.type_definition, opts("Type Definition"))
 
     map("n", "K", function()
-      require("completion.css_in_js").hover()
+      require("css_in_js").hover()
     end, opts("Hover Documentation"))
     map("n", "grn", vim.lsp.buf.rename, opts("Rename Symbol"))
     map({ "n", "v" }, "<leader>la", vim.lsp.buf.code_action, opts("Code Action"))

@@ -73,19 +73,11 @@ blink.setup({
     default = { "lazydev", "lsp", "css_in_js", "path", "snippets", "buffer" },
     providers = {
       lsp = {
-        transform_items = function(ctx, items)
-          if not require("utils.css_in_js").context(ctx.bufnr, ctx.cursor[1] - 1, ctx.cursor[2]) then
-            return items
-          end
-          return vim.tbl_filter(function(item)
-            local client = vim.lsp.get_client_by_id(item.client_id)
-            return not client or (client.name ~= "tsgo" and client.name ~= "vtsls")
-          end, items)
-        end,
+        transform_items = require("css_in_js").filter_lsp_items,
       },
       css_in_js = {
         name = "CSS-in-JS",
-        module = "completion.css_in_js",
+        module = "css_in_js",
       },
       lazydev = {
         name = "LazyDev",

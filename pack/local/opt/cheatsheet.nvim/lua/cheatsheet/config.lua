@@ -91,20 +91,7 @@ M.defaults = {
 
   modes = { "n", "i", "v", "o", "t" },
 
-  group_rules = {
-    { pattern = "^FZF:", group = "find", icon = " " },
-    { pattern = "^Git:", group = "git", icon = "󰊢 " },
-    { pattern = "^LSP:", group = "lsp", icon = "󰒕 " },
-    { pattern = "^DAP:", group = "debug", icon = " " },
-    { pattern = "^Tree:", group = "tree", icon = "󰙅 " },
-    { pattern = "^Trouble:", group = "trouble", icon = "󰁙 " },
-    { pattern = "^Buffer:", group = "buffer", icon = "󰓩 " },
-    { pattern = "^AI:", group = "ai", icon = "󰚩 " },
-    { pattern = "^Edit:", group = "edit", icon = "󰦨 " },
-    { pattern = "^Navigate:", group = "navigate", icon = "󰆹 " },
-    { pattern = "^General:", group = "general", icon = "󰌵 " },
-    { pattern = "^Cheatsheet:", group = "cheatsheet", icon = "󰌌 " },
-  },
+  group_rules = {},
 
   default_group = {
     name = "other",
@@ -116,7 +103,7 @@ M.defaults = {
     patterns = { "^<Plug>", "^Lua function" },
     single_word = true,
     newline = true,
-    groups = { "terminal (t)", "autopairs" },
+    groups = {},
   },
 
   icons = {
@@ -124,21 +111,7 @@ M.defaults = {
     default = "󰌌 ",
   },
 
-  sort_groups = {
-    "find",
-    "git",
-    "lsp",
-    "debug",
-    "tree",
-    "buffer",
-    "trouble",
-    "ai",
-    "edit",
-    "navigate",
-    "general",
-    "cheatsheet",
-    "other",
-  },
+  sort_groups = {},
 
   sort_keys = "alphanum",
   group_align = "left",
@@ -151,7 +124,7 @@ M.defaults = {
     prev_mode = "<S-Tab>",
   },
 
-  open_mapping = "<leader>ch",
+  open_mapping = nil,
 }
 
 ---@param opts CheatsheetConfigPartial

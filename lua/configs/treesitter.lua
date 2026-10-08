@@ -1,22 +1,6 @@
 local ts = require("nvim-treesitter")
 local api = vim.api
 
--- Use the forked styled parser until the upstream fix is merged.
-local function override_styled_parser()
-  require("nvim-treesitter.parsers").styled.install_info = {
-    url = "https://github.com/Pepetka/tree-sitter-styled",
-    revision = "e2bfd21812dadd0d7a84dfc878c9151f61295944",
-    files = { "src/parser.c", "src/scanner.c" },
-  }
-end
-override_styled_parser()
-
--- nvim-treesitter reloads parser configs on install/update, so re-apply the override.
-api.nvim_create_autocmd("User", {
-  pattern = "TSUpdate",
-  callback = override_styled_parser,
-})
-
 local parsers = {
   "bash",
   "c",
@@ -49,15 +33,6 @@ local ts_config = {
 ts.setup(ts_config)
 
 ts.install(parsers)
-
-vim.opt.foldmethod = "expr"
-vim.opt.foldexpr = "v:lua.require'utils.folds'.expr()"
-vim.opt.foldlevel = 99
-vim.opt.foldlevelstart = 99
-vim.opt.foldnestmax = 1
-vim.opt.foldminlines = 4
-vim.opt.foldcolumn = "2"
-vim.opt.foldtext = ""
 
 local ts_filetypes = {
   "bash",
@@ -100,8 +75,7 @@ api.nvim_create_autocmd("FileType", {
 
     vim.treesitter.start(args.buf, lang)
 
-    vim.wo[0][0].foldexpr = "v:lua.require'utils.folds'.expr()"
-    vim.wo[0][0].foldmethod = "expr"
+    require("stable_folds").attach()
     vim.wo[0][0].foldminlines = 4
   end,
 })

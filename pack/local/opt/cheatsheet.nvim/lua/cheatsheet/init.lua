@@ -1,7 +1,6 @@
 local config = require("cheatsheet.config")
 local parser = require("cheatsheet.parser")
 local render = require("cheatsheet.render")
-local map_opts = require("utils.map_opts")
 local api = vim.api
 
 local M = {}
@@ -75,7 +74,7 @@ function M.setup(opts)
 
   local open_mapping = config.options.open_mapping
   if open_mapping then
-    vim.keymap.set("n", open_mapping, M.toggle, map_opts("Cheatsheet: Toggle"))
+    vim.keymap.set("n", open_mapping, M.toggle, { desc = "Cheatsheet: Toggle", silent = true })
   end
 
   init = true
