@@ -35,12 +35,16 @@ Plugin groups in `lua/plugins/init.lua` load in order: `shared` → `core` → `
 - `lua/configs/*.lua` — per-plugin setup
 - `lsp/*.lua` — server configs loaded by `vim.lsp.config` in `lua/configs/lsp.lua`
 - `lua/utils/oxc_config.lua` — Oxc formatter/linter config detection
+- `pack/local/opt/` — self-contained local plugins, loaded with native `packadd`
+- `pack/local/opt/package-info.nvim/` — package.json dependency information, Node helper and tests
+- `lua/configs/package_info.lua` — package-info setup
 - `nvim-pack-lock.json` — pinned plugin revisions
 - `stylua.toml` — formatter config (120 cols, 2 spaces, Unix endings, AutoPreferDouble)
 
 ## Build and Test Commands
 
-No build step or test suite. When editing the config:
+No build step. Package-info has focused Node and headless Neovim tests
+(see `pack/local/opt/package-info.nvim/README.md`). When editing the config:
 
 - `stylua --check .` — verify formatting
 - `stylua .` — apply formatting
@@ -49,6 +53,12 @@ No build step or test suite. When editing the config:
 - `:TsLspSwitch` (`<leader>lT`) — override the TS server for the current project; `:TsLspAuto` (`<leader>lA`) restores automatic selection
 - `:PackClean` — remove unused `vim.pack` plugins
 - `:PackUpdate [plugins...][!]` — update plugins
+- `:PackageInfo`, `:PackageInfoRefresh[!]`, `:PackageInfoToggle`, `:PackageInfoStatus` — dependency information
+
+Package-info requires Node >=22.18 and npm to bootstrap its isolated helper under `stdpath("data")/package-info`.
+It uses the project's npm, Yarn 1–4, or pnpm >=7 without installing a manager or modifying project dependencies.
+Registry checks share a persistent Node helper with native manager configuration, parallel HTTP requests,
+and a private metadata cache; custom Yarn network hooks use the manager CLI for compatibility.
 
 ## Code Style
 
@@ -142,6 +152,10 @@ For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
 
 ## Notes for AI Agents
 
+- Keep local plugins self-contained under `pack/local/opt/<plugin-name>/`, with their own Lua namespace,
+  helper sources, tests and README. Load them with `vim.cmd.packadd()` in the appropriate group.
+  Keep personal setup in `lua/configs/`; local plugins must not require modules from the host config.
+
 - Add new plugins to the appropriate group in `lua/plugins/groups/`:
   - `shared.lua` — shared libraries, colorscheme, `lazydev.nvim`
   - `core.lua` — treesitter, mason, LSP, completion, formatting, linting
@@ -154,6 +168,7 @@ For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
 - When adding JS/TS formatter or linter support, update `lua/utils/oxc_config.lua` if Oxc detection is needed.
 - Always use `require("utils.map_opts")` for new keymaps and include a description.
 - Reuse helpers in `lua/utils/` instead of duplicating logic.
-- If a plugin caches colors from `utils.colors` at setup time, register a `ColorScheme` callback via `utils.theme_highlights`.
+- Host plugin configs that cache colors from `utils.colors` should register a `ColorScheme` callback via
+  `utils.theme_highlights`. Self-contained local plugins should handle `ColorScheme` with their own autocommand.
 - Run `stylua .` before committing Lua changes.
-- Test changes inside Neovim; there is no external test runner.
+- Test changes inside Neovim. For package-info, also run the Node built-in tests described in its plugin README.

@@ -303,6 +303,19 @@ a stylesheet with `@import "tailwindcss"`; no Tailwind or PostCSS config file is
 - **Live theme switching** via `~/.config/theme/mode`
 - **Better Escape** — `jk`, `kj`, `jj` act as Escape in insert/visual modes
 
+## Local plugins
+
+Locally developed plugins live under [`pack/local/opt/`](pack/local/opt/). Each plugin folder contains
+its own Lua modules, helper sources, tests and documentation, and can become a separate repository.
+The appropriate plugin group loads it with `vim.cmd.packadd("<name>")` before its `lua/configs/` setup.
+
+[`package-info.nvim`](pack/local/opt/package-info.nvim/README.md) checks saved `package.json` files using
+npm, Yarn or pnpm settings. Installed versions appear immediately; registry results arrive incrementally
+and are cached between Neovim sessions. Its setup is in [`lua/configs/package_info.lua`](lua/configs/package_info.lua).
+
+Commands: `:PackageInfo`, `:PackageInfoRefresh[!]`, `:PackageInfoToggle`, `:PackageInfoStatus`.
+See the [plugin README](pack/local/opt/package-info.nvim/README.md) for behavior, requirements and test commands.
+
 ## Key bindings
 
 Leader is `<Space>`, local leader is `\`.
