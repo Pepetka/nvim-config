@@ -50,8 +50,6 @@ map("n", "<leader>rr", ":%s/<C-r><C-w>//g<Left><Left>", map_opts("Navigate: Repl
 --  Buffer
 -- ═══════════════════════════════════════════════════════════════
 map("n", "<leader>w", "<cmd>wa<cr>", map_opts("Buffer: Save all buffers"))
-map("n", "<Tab>", "<cmd>bnext<cr>", map_opts("Buffer: Next buffer"))
-map("n", "<S-Tab>", "<cmd>bprevious<cr>", map_opts("Buffer: Previous buffer"))
 
 -- ═══════════════════════════════════════════════════════════════
 --  Config / Meta

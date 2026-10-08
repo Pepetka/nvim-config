@@ -21,10 +21,12 @@ add({
   "https://github.com/folke/ts-comments.nvim",
   "https://github.com/nvim-mini/mini.cursorword",
   "https://github.com/Exafunction/windsurf.nvim",
-  "https://github.com/tiagovla/scope.nvim",
   "https://github.com/mfussenegger/nvim-dap",
   { src = "https://github.com/igorlfs/nvim-dap-view", version = vim.version.range("1.*") },
 })
+
+vim.cmd.packadd("tab-buffers.nvim")
+require("configs.tab_buffers")
 
 require("configs.tree")
 require("configs.fzf_lua")
@@ -45,6 +47,5 @@ require("configs.ts_comments")
 require("configs.cursorword")
 require("configs.ai")
 require("configs.windsurf")
-require("configs.scope")
 require("configs.dap")
 require("configs.dap_view")

@@ -38,6 +38,8 @@ Plugin groups in `lua/plugins/init.lua` load in order: `shared` → `core` → `
 - `pack/local/opt/` — self-contained local plugins, loaded with native `packadd`
 - `pack/local/opt/package-info.nvim/` — package.json dependency information, Node helper and tests
 - `lua/configs/package_info.lua` — package-info setup
+- `pack/local/opt/tab-buffers.nvim/` — tab-local buffer ownership, safe closure, bufferline/fzf/Diffview integrations and tests
+- `lua/configs/tab_buffers.lua` — tab-buffers setup and buffer mappings
 - `nvim-pack-lock.json` — pinned plugin revisions
 - `stylua.toml` — formatter config (120 cols, 2 spaces, Unix endings, AutoPreferDouble)
 
@@ -132,7 +134,9 @@ Triggers: `BufWritePost`, `BufReadPost`, `FileType`, `InsertLeave`, `TextChanged
 - `]d` / `[d` — next / previous diagnostic
 - `<leader>id` / `<leader>ic` / `<leader>ia` / `<leader>ir` — inline diagnostics toggles
 - `<leader>qd` / `<leader>qx` / `<leader>qs` / `<leader>ql` / `<leader>qq` / `<leader>qL` — `trouble.nvim`
-- `<leader>x` — close current buffer, `<leader>cx` — close all except current (scope-aware)
+- `<Tab>` / `<S-Tab>` — next / previous buffer in the current tab
+- `<leader>x` — close current buffer, `<leader>cx` — close all except current in the tab
+- `<leader>bh` / `<leader>bl` — move current buffer left / right within the tab
 - `<C-f>` — floating terminal
 - `<leader>ut` — undo tree
 - `<leader>ui` — toggle inlay hints (globally)
@@ -172,3 +176,7 @@ For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
   `utils.theme_highlights`. Self-contained local plugins should handle `ColorScheme` with their own autocommand.
 - Run `stylua .` before committing Lua changes.
 - Test changes inside Neovim. For package-info, also run the Node built-in tests described in its plugin README.
+- For tab-buffers, run the core, Neovim adapter, UI and Diffview integration tests described in its README.
+  Diffview tabs are excluded reviews; `gf` opens the local file in an ordinary tab and `<C-w>gf` creates one.
+  Use its public API for tab-local navigation, sorting and closure; native buffer commands still use the global list.
+  Bufferline Move/Sort/TogglePin commands are disabled. Membership is session-local.

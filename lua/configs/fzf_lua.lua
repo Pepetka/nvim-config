@@ -1,5 +1,6 @@
 local fzf = require("fzf-lua")
 local actions = require("fzf-lua.actions")
+local tab_buffers = require("tab_buffers.integrations.fzf")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 
@@ -66,7 +67,7 @@ fzf.setup({
       ["default"] = actions.buf_edit,
       ["ctrl-s"] = actions.buf_split,
       ["ctrl-v"] = actions.buf_vsplit,
-      ["ctrl-x"] = { actions.buf_del, actions.resume },
+      ["ctrl-x"] = false,
     },
   },
   previewers = {
@@ -197,7 +198,7 @@ map("n", "<leader>fg", function()
   fzf.live_grep()
 end, opts("Live grep"))
 map("n", "<leader>fb", function()
-  fzf.buffers()
+  tab_buffers.buffers()
 end, opts("Buffers"))
 map("n", "<leader>fh", function()
   fzf.helptags()

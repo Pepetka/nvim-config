@@ -1,10 +1,12 @@
 local diffview = require("diffview")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
+local tab_buffers = require("tab_buffers.integrations.diffview")
 
 diffview.setup({
   use_icons = true,
   watch_index = true,
+  hooks = tab_buffers.hooks(),
 
   view = {
     default = {
@@ -46,12 +48,18 @@ diffview.setup({
   keymaps = {
     disable_defaults = false,
     view = {
+      { "n", "gf", tab_buffers.goto_file, map_opts("Git: Open file in previous ordinary tab") },
+      { "n", "<C-w>gf", tab_buffers.goto_file_tab, map_opts("Git: Open file in new tab") },
       { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Git: Close diffview" } },
     },
     file_panel = {
+      { "n", "gf", tab_buffers.goto_file, map_opts("Git: Open file in previous ordinary tab") },
+      { "n", "<C-w>gf", tab_buffers.goto_file_tab, map_opts("Git: Open file in new tab") },
       { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Git: Close diffview" } },
     },
     file_history_panel = {
+      { "n", "gf", tab_buffers.goto_file, map_opts("Git: Open file in previous ordinary tab") },
+      { "n", "<C-w>gf", tab_buffers.goto_file_tab, map_opts("Git: Open file in new tab") },
       { "n", "q", "<cmd>DiffviewClose<cr>", { desc = "Git: Close diffview" } },
     },
   },
