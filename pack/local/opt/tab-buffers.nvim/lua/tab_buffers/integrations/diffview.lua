@@ -3,6 +3,13 @@ local buffers = require("tab_buffers")
 local M = {}
 local views = {}
 
+---Whether a tab is an observed Diffview or file-history review.
+---@param tab integer
+---@return boolean
+function M.is_review(tab)
+  return api.nvim_tabpage_is_valid(tab) and views[tab] ~= nil
+end
+
 local function changed()
   api.nvim_exec_autocmds("User", { pattern = "TabBuffersContextChanged", modeline = false })
 end

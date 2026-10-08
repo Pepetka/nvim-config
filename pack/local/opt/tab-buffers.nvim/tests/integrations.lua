@@ -1,21 +1,19 @@
 -- nvim --clean --headless -i NONE -l tests/integrations.lua
--- Requires the installed bufferline.nvim, fzf-lua and fzf; never installs dependencies.
+-- Requires the installed fzf-lua and fzf; never installs dependencies.
 local root = vim.fs.dirname(vim.fs.dirname(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p")))
 vim.opt.rtp:prepend(root)
 vim.opt.packpath:append(vim.fn.stdpath("data") .. "/site")
 vim.o.swapfile = false
 vim.o.columns, vim.o.lines = 160, 50
-vim.cmd.packadd("bufferline.nvim")
 vim.cmd.packadd("fzf-lua")
 local api = vim.api
 local plugin = require("tab_buffers")
-local line = require("tab_buffers.integrations.bufferline")
+local line = require("tab_buffers.tabline")
 local picker = require("tab_buffers.integrations.fzf")
-local bufferline = require("bufferline")
 local fzf = require("fzf-lua")
 local fzf_bin = vim.fn.exepath("fzf")
 assert(fzf_bin ~= "", "integration tests require fzf on PATH")
-local original_setup, original_exec = bufferline.setup, fzf.fzf_exec
+local original_exec = fzf.fzf_exec
 local notify = vim.notify
 local tests, notices, sequence = {}, {}, 0
 vim.notify = function(message)
@@ -53,7 +51,7 @@ local function show(buf)
 end
 
 local function reset()
-  bufferline.setup, fzf.fzf_exec = original_setup, original_exec
+  fzf.fzf_exec = original_exec
   fzf.win.close()
   line.teardown()
   plugin.teardown()
@@ -84,23 +82,59 @@ local function test(name, fn)
   tests[#tests + 1] = { name = name, run = fn }
 end
 
-local function render()
+local function line_entries()
   drain()
-  api.nvim_eval_statusline(vim.o.tabline, { use_tabline = true })
-  return vim.tbl_map(function(item)
-    return item.id
-  end, bufferline.get_elements().elements)
+  local result = {}
+  for highlight, token, text in line.render():gmatch("%%#TabBuffers(%w+)#%%(%d+)@[^@]+@(.-)%%X") do
+    if highlight ~= "Tab" and highlight ~= "TabActive" then
+      result[#result + 1] = { token = tonumber(token), text = text:gsub("%%%%", "%%") }
+    end
+  end
+  return result
 end
 
-local function capture_line(config)
-  local received
-  bufferline.setup = function(options)
-    received = options
-    original_setup(options)
+local function render()
+  api.nvim_eval_statusline(vim.o.tabline, { use_tabline = true })
+  local labels = require("tab_buffers.tabline.layout").labels(vim.tbl_map(function(buf)
+    return { id = buf, name = api.nvim_buf_get_name(buf) }
+  end, plugin.buffers()))
+  local result = {}
+  for _, entry in ipairs(line_entries()) do
+    local found
+    for buf, label in pairs(labels) do
+      if entry.text:find(label, 1, true) then
+        found = buf
+        break
+      end
+    end
+    assert(found, "unexpected rendered buffer: " .. entry.text)
+    result[#result + 1] = found
   end
-  line.setup(config)
-  bufferline.setup = original_setup
-  return received.options
+  return result
+end
+
+local function capture_line()
+  line.setup({ icons = false })
+  local function click(buf, button)
+    local labels = require("tab_buffers.tabline.layout").labels(vim.tbl_map(function(id)
+      return { id = id, name = api.nvim_buf_get_name(id) }
+    end, plugin.buffers()))
+    for _, entry in ipairs(line_entries()) do
+      if labels[buf] and entry.text:find(labels[buf], 1, true) then
+        line.click(entry.token, 1, button, "    ")
+        return
+      end
+    end
+  end
+  return {
+    left_mouse_command = function(buf)
+      click(buf, "l")
+    end,
+    close_command = function(buf)
+      click(buf, "m")
+    end,
+    right_mouse_command = function() end,
+  }
 end
 
 local function capture_picker()
@@ -133,7 +167,7 @@ local function ids(entries)
   end, entries)
 end
 
-test("excluded review tabs have no bufferline or scoped picker entries", function()
+test("excluded review tabs have no tabline or scoped picker entries", function()
   local a = file("ordinary.lua")
   show(a)
   plugin.setup()
@@ -155,7 +189,7 @@ test("excluded review tabs have no bufferline or scoped picker entries", functio
   equal(plugin.owners(preview), {})
 end)
 
-test("bufferline renders independent orders and hidden shared members in each tab", function()
+test("tabline renders independent orders and hidden shared members in each tab", function()
   local a, b, c = file("a.lua"), file("b.lua"), file("c.lua")
   show(a)
   plugin.setup()
@@ -165,7 +199,7 @@ test("bufferline renders independent orders and hidden shared members in each ta
   plugin.add(a)
   local second = api.nvim_get_current_tabpage()
   plugin.reorder({ c, a })
-  line.setup({ options = { numbers = "ordinal" } })
+  line.setup({ icons = false })
   equal(render(), { c, a })
   api.nvim_set_current_tabpage(first)
   plugin.reorder({ b, a, c })
@@ -178,7 +212,7 @@ test("bufferline renders independent orders and hidden shared members in each ta
   equal(render(), { a, c })
 end)
 
-test("bufferline visibility counts scoped buffers and real tabs", function()
+test("tabline visibility counts scoped buffers and real tabs", function()
   local a = file()
   show(a)
   plugin.setup()
@@ -199,7 +233,7 @@ test("bufferline visibility counts scoped buffers and real tabs", function()
   equal(vim.o.showtabline, 2)
 end)
 
-test("bufferline callbacks preserve the source tab and use safe membership closure", function()
+test("tabline callbacks preserve the source tab and use safe membership closure", function()
   local a, b = file(), file()
   show(a)
   plugin.setup()
@@ -209,7 +243,7 @@ test("bufferline callbacks preserve the source tab and use safe membership closu
   show(b)
   local second = api.nvim_get_current_tabpage()
   api.nvim_set_current_tabpage(first)
-  options.right_mouse_command(b)
+  options.close_command(b)
   api.nvim_set_current_tabpage(second)
   drain()
   equal(plugin.contains(b, first), false)
@@ -225,7 +259,7 @@ test("bufferline callbacks preserve the source tab and use safe membership closu
   equal(plugin.contains(a, first), true)
 end)
 
-test("bufferline selection from a tree preserves the tree and stale clicks do nothing", function()
+test("tabline selection from a tree preserves the tree and stale clicks do nothing", function()
   local a, b = file(), file()
   show(a)
   plugin.setup()
@@ -243,22 +277,21 @@ test("bufferline selection from a tree preserves the tree and stale clicks do no
   equal(api.nvim_get_current_buf(), b)
 end)
 
-test("bufferline setup is repeatable and teardown cancels clicks and restores configuration", function()
+test("tabline setup is repeatable and teardown cancels clicks and restores configuration", function()
   local a, b = file(), file()
   show(a)
   plugin.setup()
-  local options = capture_line({ options = { numbers = "ordinal" } })
-  local count = #api.nvim_get_autocmds({ group = "TabBuffersBufferline" })
-  line.setup({ options = { numbers = "ordinal" } })
-  equal(#api.nvim_get_autocmds({ group = "TabBuffersBufferline" }), count)
-  equal(api.nvim_get_commands({}).BufferLineMoveNext, nil)
-  equal(api.nvim_get_commands({}).BufferLineSortByDirectory, nil)
-  equal(api.nvim_get_commands({}).BufferLineTogglePin, nil)
+  local old_line, old_visibility = vim.o.tabline, vim.o.showtabline
+  local options = capture_line()
+  local count = #api.nvim_get_autocmds({ group = "TabBuffersTabline" })
+  line.setup({ icons = false })
+  equal(#api.nvim_get_autocmds({ group = "TabBuffersTabline" }), count)
   options.close_command(b)
   line.teardown()
   drain()
   equal(api.nvim_buf_is_valid(b), true)
-  assert(api.nvim_get_commands({}).BufferLineMoveNext)
+  equal(vim.o.tabline, old_line)
+  equal(vim.o.showtabline, old_visibility)
   equal(line.teardown(), false)
 end)
 

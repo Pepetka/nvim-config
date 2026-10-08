@@ -9,7 +9,7 @@ Personal Neovim configuration (Lua, Neovim 0.12+, `vim.pack`). Targets the live 
 - **Completion:** `blink.cmp` (sources: `lazydev`, `lsp`, `css_in_js`, `path`, `snippets`, `buffer`)
 - **Fuzzy finder:** `fzf-lua`
 - **File tree:** `nvim-tree.lua`
-- **Status/tab line:** `lualine.nvim` / `bufferline.nvim`
+- **Status/tab line:** `lualine.nvim` / local `tab-buffers.nvim` tabline
 - **Dashboard:** `dashboard-nvim`
 - **Colorscheme:** `tokyonight.nvim` (transparent, light/dark switched via `~/.config/theme/mode`)
 - **Formatter:** `conform.nvim` (prefers Oxc when Oxc configs exist, else `eslint_d`/`prettierd`)
@@ -38,8 +38,9 @@ Plugin groups in `lua/plugins/init.lua` load in order: `shared` → `core` → `
 - `pack/local/opt/` — self-contained local plugins, loaded with native `packadd`
 - `pack/local/opt/package-info.nvim/` — package.json dependency information, Node helper and tests
 - `lua/configs/package_info.lua` — package-info setup
-- `pack/local/opt/tab-buffers.nvim/` — tab-local buffer ownership, safe closure, bufferline/fzf/Diffview integrations and tests
+- `pack/local/opt/tab-buffers.nvim/` — tab-local buffer ownership, safe closure, native tabline, fzf/Diffview integrations and tests
 - `lua/configs/tab_buffers.lua` — tab-buffers setup and buffer mappings
+- `lua/configs/tabline.lua` — optional native tab-buffers panel setup
 - `pack/local/opt/css-in-js.nvim/` — CSS template completion/hover, extraction, injection queries and tests
 - `lua/configs/css_in_js.lua` — CSS-in-JS filter and styled parser revision
 - `pack/local/opt/stable-folds.nvim/` — synchronous fold boundaries, stable closed state and tests
@@ -188,4 +189,6 @@ For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
 - For tab-buffers, run the core, Neovim adapter, UI and Diffview integration tests described in its README.
   Diffview tabs are excluded reviews; `gf` opens the local file in an ordinary tab and `<C-w>gf` creates one.
   Use its public API for tab-local navigation, sorting and closure; native buffer commands still use the global list.
-  Bufferline Move/Sort/TogglePin commands are disabled. Membership is session-local.
+  The optional `tab_buffers.tabline` uses the same public API; left click opens, middle click safely closes,
+  and tab labels show numbers with a Diffview indicator. Run `tests/tabline.lua` as well as the integration suites.
+  Tear down the tabline before the adapter. Membership is session-local.

@@ -286,7 +286,7 @@ a stylesheet with `@import "tailwindcss"`; no Tailwind or PostCSS config file is
 - **Git integration** with `gitsigns.nvim` and `diffview-plus.nvim`
 - **Debugging** for JS/TS using `nvim-dap` and `nvim-dap-view`
 - **Transparent TokyoNight** theme with external light/dark mode switching
-- **Minimal, fast UI** with `lualine`, `bufferline`, `dashboard-nvim`, and `snacks.nvim`
+- **Minimal, fast UI** with `lualine`, the local tab-buffers panel, `dashboard-nvim`, and `snacks.nvim`
 - **Custom fold expression** based on Treesitter
 - **Scope-aware buffers** with `scope.nvim` so buffer lists stay per tab
 - **Image previews** under the cursor via `snacks.nvim`
@@ -315,6 +315,11 @@ and are cached between Neovim sessions. Its setup is in [`lua/configs/package_in
 
 Commands: `:PackageInfo`, `:PackageInfoRefresh[!]`, `:PackageInfoToggle`, `:PackageInfoStatus`.
 See the [plugin README](pack/local/opt/package-info.nvim/README.md) for behavior, requirements and test commands.
+
+[`tab-buffers.nvim`](pack/local/opt/tab-buffers.nvim/README.md) manages tab-local buffer ownership,
+order and safe closure. Its optional native tabline shows buffers on the left and tab numbers on the right,
+with a Diffview indicator. Left click opens, middle click safely closes; layout and theme update automatically.
+Panel settings live in [`lua/configs/tabline.lua`](lua/configs/tabline.lua).
 
 [`css-in-js.nvim`](pack/local/opt/css-in-js.nvim/README.md) provides CSS template completion and hover,
 including template extraction, LSP edit mapping and supplemental injection queries.

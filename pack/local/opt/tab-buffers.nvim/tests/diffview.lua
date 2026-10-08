@@ -1,16 +1,15 @@
 -- nvim --clean --headless -i NONE -l tests/diffview.lua
--- Requires installed diffview-plus.nvim and bufferline.nvim; Git fixtures are isolated in a temp directory.
+-- Requires installed diffview-plus.nvim; Git fixtures are isolated in a temp directory.
 local root = vim.fs.dirname(vim.fs.dirname(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p")))
 vim.opt.rtp:prepend(root)
 vim.opt.packpath:append(vim.fn.stdpath("data") .. "/site")
 vim.o.swapfile, vim.o.hidden = false, true
 vim.o.columns, vim.o.lines = 160, 50
 vim.cmd.packadd("diffview-plus.nvim")
-vim.cmd.packadd("bufferline.nvim")
 local api = vim.api
 local plugin = require("tab_buffers")
 local integration = require("tab_buffers.integrations.diffview")
-local line = require("tab_buffers.integrations.bufferline")
+local line = require("tab_buffers.tabline")
 local diffview = require("diffview")
 local tests, views, notices = {}, {}, {}
 local real_notify = vim.notify
@@ -165,20 +164,37 @@ end
 local function render()
   drain()
   api.nvim_eval_statusline(vim.o.tabline, { use_tabline = true })
-  return vim.tbl_map(function(item)
-    return item.id
-  end, require("bufferline").get_elements().elements)
+  local labels = require("tab_buffers.tabline.layout").labels(vim.tbl_map(function(buf)
+    return { id = buf, name = api.nvim_buf_get_name(buf) }
+  end, plugin.buffers()))
+  local result = {}
+  for highlight, text in line.render():gmatch("%%#TabBuffers(%w+)#%%%d+@[^@]+@(.-)%%X") do
+    if highlight ~= "Tab" and highlight ~= "TabActive" then
+      local found
+      for buf, label in pairs(labels) do
+        if text:find(label, 1, true) then
+          found = buf
+          break
+        end
+      end
+      assert(found, "unexpected rendered buffer: " .. text)
+      result[#result + 1] = found
+    end
+  end
+  return result
 end
 
 local function test(name, run)
   tests[#tests + 1] = { name = name, run = run }
 end
 
-test("staged and working previews stay outside ownership and bufferline", function()
+test("staged and working previews stay outside ownership and tabline", function()
   local original = edit("original.txt")
   local normal = api.nvim_get_current_tabpage()
   local view = open_view()
   line.setup()
+  assert(integration.is_review(view.tabpage))
+  assert(line.render():find("󰊢 ", 1, true), "review tab must have a Diffview indicator")
   local stage = select_file(view, "staged")
   equal(vim.bo[stage].buftype, "acwrite")
   equal(plugin.buffers(view.tabpage), {})

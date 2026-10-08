@@ -3,7 +3,7 @@
 A standalone Neovim plugin for tab-local buffer membership, ordering and safe closure.
 Neovim >=0.12 is required for the adapter; the separate Lua core also runs in LuaJIT without Neovim.
 The ownership model and Neovim adapter have no dependencies on the enclosing configuration or UI plugins.
-Optional integrations use bufferline.nvim, fzf-lua and Diffview. This configuration loads the plugin in the workflow group.
+The optional native tabline uses nvim-web-devicons when available. Integrations use fzf-lua and Diffview. This configuration loads the plugin in the workflow group.
 
 Each tab owns an ordered list of unique buffer IDs. One buffer may belong to several tabs with
 independent positions. Membership does not imply a separate copy of its text.
@@ -254,25 +254,62 @@ text, windows, jobs or actual buffer validity. Calling `detach` alone does not c
 
 ## UI integrations
 
-Configure bufferline after the ownership adapter:
+The built-in native tabline is optional and uses the same ownership model:
 
 ```lua
-require("tab_buffers.integrations.bufferline").setup({
-  highlights = {}, -- Personal appearance settings.
-  options = { show_buffer_close_icons = false },
+require("tab_buffers").setup()
+require("tab_buffers.tabline").setup({
+  icons = true,
+  max_name_length = 30,
+  padding = 2,
+  offsets = { "NvimTree", "nvim-undotree" },
+  hide_filetypes = { "dashboard" },
 })
 ```
 
-The integration filters and sorts by current-tab membership, wires left clicks to `open()` and
-close/right clicks to safe `close()`, and updates on tab/model changes. Mandatory ownership callbacks
-override corresponding options supplied by the caller. Global sort persistence and automatic line
-visibility are disabled. The line shows for multiple current-tab members or multiple real tabs.
-Native BufferLine Move/Sort/TogglePin commands are disabled; use `move`, `move_to`, `reorder` and `sort`.
-Pins, custom groups and session restoration are outside this integration's scope. Native BufferLine
-navigation commands are not routed through `open`; use the plugin's functions and mappings.
-Repeated setup replaces integration handlers. `teardown()` cancels pending clicks, restores the supplied
-bufferline configuration and restores the previous visibility if it has not been changed independently.
-Tear down this integration before tearing down the ownership adapter.
+`setup(opts?)` accepts these five options and optional `highlights`. Defaults are icons enabled, a 30-cell maximum name,
+zero horizontal padding, and empty offset/hidden-filetype lists. Personal settings live in the host's `lua/configs/tabline.lua`.
+`highlights` is a table keyed by Fill/Buffer/Visible/Active/Tab/TabActive/Offset/Border/ActiveBorder/Overflow, or a callback
+returning that table on setup and ColorScheme. Foregrounds default to Normal, with Function/Special
+accents for active buffers/tabs; opaque TabLineSel foregrounds are not reused. Backgrounds and reverse
+attributes are removed to preserve transparency. The host supplies fresh TokyoNight text/accent colors.
+No host modules are required. Icons use optional nvim-web-devicons; without it, names still render.
+
+The left side shows current-tab members in model order, with file icons, modified markers and
+active/visible/hidden highlights. When focus enters a special or floating window, the last active
+owned buffer remains highlighted. If it leaves membership, the first visible member or first member
+is selected. Duplicate names use the shortest distinguishing path suffix; duplicate unnamed buffers
+include IDs. Long names truncate on the left using screen-cell widths and an ellipsis. Percent signs
+and control characters in filenames cannot become tabline directives.
+
+The right side shows actual tab numbers when more than one tab exists, with a `󰊢` marker for
+observed Diffview/file-history reviews. The integration exposes `is_review(tab)` for this purpose.
+Review tabs have no owned-buffer entries. Tab labels use stable tabpage handles for actions even
+when their displayed numbers change. On narrow screens, both lists show contiguous sections around
+their active entries with bold `«N`/`N»` indicators showing the number of hidden elements. Muted `│` boundaries separate items; the active buffer and tab use a red `▎` boundary.
+Indicators are informational; navigate with the existing
+buffer/tab mappings. Tabs reserve up to roughly one third of the available space; remaining space
+belongs to buffers. Extremely small spaces prioritize active entries over hidden-side indicators.
+
+Left click opens a buffer through `open`; middle click closes through safe `close` without force.
+Right click, multiple clicks and modified clicks do nothing. Left click on a tab switches to it;
+other tab clicks do nothing. Deferred actions preserve the displayed source tab and buffer handles,
+check membership/validity again and cancel after teardown or repeated setup. Tree and special windows
+are preserved, and modified exclusive buffers are never silently discarded.
+
+Visibility depends on multiple current-tab members or multiple actual tabs. Configured hidden
+filetypes hide the panel while focused. Offsets reserve the width and separator of configured
+full-height outer sidebars; floating and stacked windows do not reserve space. `padding` adds
+screen cells on both sides of the content, inside sidebar offsets. It shrinks on extremely narrow
+panels to leave room for content. The host uses two cells per side. Highlights have
+transparent backgrounds and refresh on ColorScheme. No pins, groups, dragging, diagnostics,
+animations, close buttons or session restoration are implemented.
+
+`render()` is the native tabline expression and returns the cached string without mutating the
+model. Updates coalesce on model/context, focus, tab, filename, modified-state, filetype, resize and
+theme events. Repeated `setup` replaces handlers. `teardown()` cancels pending actions and restores
+previous tabline/showtabline values if they are still owned by this module. Tear the panel down before
+tearing down the ownership adapter. `click` is the native tabline callback, not a navigation API.
 
 ```lua
 require("tab_buffers.integrations.fzf").buffers({ prompt = "Buffers❯ " })
@@ -308,7 +345,7 @@ require("diffview").setup({
 ```
 
 Diffview and file-history tabs are separate reviews. Their staged/commit versions and real working-tree
-previews do not acquire membership or appear in the scoped bufferline/fzf picker. Existing ownership
+previews do not acquire membership or appear in the scoped tabline/fzf picker. Existing ownership
 in ordinary tabs remains intact. Our management functions do nothing in review tabs, including explicit
 close/open requests; Diffview owns their windows, navigation, cleanup and modified-index checks.
 Use `DiffviewClose` or its `q` mapping to close a review.
@@ -336,20 +373,21 @@ Its normal mappings are Tab/Shift-Tab for navigation, `<leader>x` for close, `<l
 `<leader>bh`/`<leader>bl` for moving left/right, and `<leader>fb` for this picker. Restart Neovim after
 switching from scope so its old autocommands and listing state are no longer active. Native `bnext`,
 `bdelete!` and other global commands retain Neovim's global semantics. Membership is session-local.
-The installed but inactive scope package can remain until a separate package cleanup. Its lockfile
-entry must remain while installed: `vim.pack` repairs missing installed-package records on startup.
+Installed but inactive scope and bufferline packages can remain until a separate package cleanup. Their lockfile
+entries must remain while installed: `vim.pack` repairs missing installed-package records on startup.
 
 ## Tests
 
 The suites require LuaJIT for the core or Neovim >=0.12, with no additional test framework.
-UI integration tests additionally require installed bufferline.nvim, fzf-lua and the fzf executable.
-Diffview tests require installed diffview-plus.nvim, bufferline.nvim and Git.
+The standalone tabline suite requires only Neovim. UI integration tests additionally require installed fzf-lua and the fzf executable.
+Diffview tests require installed diffview-plus.nvim and Git.
 Run from this plugin's root:
 
 ```sh
 luajit tests/core.lua
 nvim --clean --headless -i NONE -l tests/core.lua
 nvim --clean --headless -i NONE -l tests/nvim.lua
+nvim --clean --headless -i NONE -l tests/tabline.lua
 nvim --clean --headless -i NONE -l tests/integrations.lua
 nvim --clean --headless -i NONE -l tests/diffview.lua
 stylua --check .
@@ -362,7 +400,7 @@ temporary buffer names without writing files, and short-lived terminal jobs. The
 configuration or change existing projects. Targeted integration cases load host mappings and the
 Diffview setup. Diffview tests create and remove their own temporary Git repository; they never stage
 or commit changes in the enclosing repository. Swap files are disabled. In a restricted environment, set
-`NVIM_LOG_FILE` to a writable temporary path.
+`NVIM_LOG_FILE` to a writable temporary path and `XDG_CACHE_HOME` to a temporary directory for Diffview logs.
 Fzf-lua also requires permission to open a local Neovim RPC socket. The UI suite discovers installed
 plugins under `stdpath("data")/site`; it does not download or modify dependencies. Its fzf tests run
 real processes, inspect previews and send terminal input to verify deletion/reload and resume.
@@ -378,7 +416,7 @@ navigation, shared/modified closures, partial failures, all bulk-close modes, sp
 window/deletion rollback, expired handles, transfers, tab preflight/force, inactive and external closure,
 `tabonly`, last windows/buffers/tabs, recovery, destructive `bufhidden`, terminal survival, editor exit,
 reentrant callbacks and errors after changes have committed.
-UI coverage includes actual bufferline rendering, per-tab order and visibility, safe click callbacks,
+UI coverage includes native tabline rendering, per-tab order and visibility, safe click callbacks and native mouse dispatch,
 idempotent integration setup/teardown, stale selections, fzf entry order/metadata, fast callbacks,
 multi-close, split selection, real buffer previews, reload and resume across tabs, and host mappings.
 
