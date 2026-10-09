@@ -92,6 +92,6 @@ vim.api.nvim_create_autocmd("FileType", {
 -- ═══════════════════════════════════════════════════════════════
 map("n", "<leader>ut", function()
   M.toggle()
-end, opts("Toggle undotree"))
+end, map_opts("Toggle: Undo tree"))
 
 return M

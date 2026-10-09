@@ -1,0 +1,33 @@
+---@class CheatsheetTestSession: CheatsheetSession
+---@field alive boolean
+
+---@alias CheatsheetTestFailure "fail_create" | "fail_collect" | "fail_update" | "fail_viewport"
+
+---@class CheatsheetTestState
+---@field created integer
+---@field closed integer
+---@field updates integer
+---@field installed integer
+---@field messages { message: string, level: CheatsheetLogLevel }[]
+---@field columns integer
+---@field lines integer
+---@field current_buf integer
+---@field displayed? boolean
+---@field options? CheatsheetConfig
+---@field callbacks? CheatsheetCallbacks
+---@field session? CheatsheetTestSession
+---@field actions? CheatsheetActions
+---@field size? CheatsheetGeometry
+---@field document? CheatsheetDocument
+---@field reset? boolean
+---@field collected_mode? CheatsheetMode
+---@field fail_install? boolean
+---@field fail_viewport? boolean
+---@field fail_collect? boolean
+---@field fail_create? boolean
+---@field fail_update? boolean
+---@field fail_close? boolean
+---@field partial_create? boolean
+---@field source_deleted? boolean
+---@field reenter? CheatsheetAction
+---@field on_close? fun(session: CheatsheetTestSession): nil

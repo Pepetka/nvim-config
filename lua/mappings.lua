@@ -85,10 +85,10 @@ end
 
 map("n", "<leader>un", function()
   toggle_win_option("number", "Line numbers")
-end, map_opts("General: Toggle line numbers"))
+end, map_opts("Toggle: Line numbers"))
 map("n", "<leader>ur", function()
   toggle_win_option("relativenumber", "Relative numbers")
-end, map_opts("General: Toggle relative numbers"))
+end, map_opts("Toggle: Relative numbers"))
 map("n", "<leader>us", function()
   toggle_win_option("spell", "Spell check")
 end, map_opts("Toggle: Spell check"))
@@ -118,7 +118,7 @@ local function toggle_wrap()
   vim.notify("Wrap " .. (enabled and "enabled" or "disabled"), vim.log.levels.INFO)
 end
 
-map("n", "<leader>uw", toggle_wrap, map_opts("General: Toggle word wrap"))
+map("n", "<leader>uw", toggle_wrap, map_opts("Toggle: Word wrap"))
 
 map("n", "j", "gj", map_opts("Navigate: Move down by visual line"))
 map("n", "k", "gk", map_opts("Navigate: Move up by visual line"))
