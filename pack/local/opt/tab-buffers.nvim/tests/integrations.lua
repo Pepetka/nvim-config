@@ -2,6 +2,8 @@
 -- Requires the installed fzf-lua and fzf; never installs dependencies.
 local root = vim.fs.dirname(vim.fs.dirname(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p")))
 vim.opt.rtp:prepend(root)
+package.path = root .. "/tests/?.lua;" .. package.path
+local support = require("support")
 vim.opt.packpath:append(vim.fn.stdpath("data") .. "/site")
 vim.o.swapfile = false
 vim.o.columns, vim.o.lines = 160, 50
@@ -16,14 +18,15 @@ assert(fzf_bin ~= "", "integration tests require fzf on PATH")
 local original_exec = fzf.fzf_exec
 local notify = vim.notify
 local tests, notices, sequence = {}, {}, 0
+-- Intentional native API replacement for failure injection.
+---@diagnostic disable-next-line: duplicate-set-field
 vim.notify = function(message)
   notices[#notices + 1] = message
 end
 
-local function equal(actual, expected)
-  assert(vim.deep_equal(actual, expected), "expected " .. vim.inspect(expected) .. ", got " .. vim.inspect(actual))
-end
+local equal = support.equal
 
+---@return nil
 local function drain()
   for _ = 1, 3 do
     local done = false
@@ -36,6 +39,8 @@ local function drain()
   end
 end
 
+---@param name? string
+---@return integer
 local function file(name)
   sequence = sequence + 1
   local buf = api.nvim_create_buf(true, false)
@@ -45,11 +50,14 @@ local function file(name)
   return buf
 end
 
+---@param buf integer
+---@return nil
 local function show(buf)
   api.nvim_set_current_buf(buf)
   drain()
 end
 
+---@return nil
 local function reset()
   fzf.fzf_exec = original_exec
   fzf.win.close()
@@ -78,6 +86,9 @@ local function reset()
   notices = {}
 end
 
+---@param name string
+---@param fn fun(): nil
+---@return nil
 local function test(name, fn)
   tests[#tests + 1] = { name = name, run = fn }
 end
@@ -133,7 +144,7 @@ local function capture_line()
     close_command = function(buf)
       click(buf, "m")
     end,
-    right_mouse_command = function() end,
+    right_mouse_command = function(_buf) end,
   }
 end
 
@@ -373,9 +384,9 @@ test("fzf contents can be requested from a fast callback", function()
   plugin.setup()
   local _, _, contents = capture_picker()
   local rows, done, was_fast = {}, false, false
-  local timer = vim.uv.new_timer()
+  local timer = assert(vim.uv.new_timer())
   timer:start(0, 0, function()
-    was_fast = vim.in_fast_event()
+    was_fast = vim.in_fast_event() == true
     timer:stop()
     timer:close()
     contents(function(row)
@@ -487,7 +498,7 @@ test("real fzf Ctrl-X safely deletes and reloads while the picker stays open", f
   )
   assert(
     vim.wait(10000, function()
-      return table.concat(api.nvim_buf_get_lines(terminal, 0, -1, false), "\n"):find("second.lua", 1, true)
+      return table.concat(api.nvim_buf_get_lines(terminal, 0, -1, false), "\n"):find("second.lua", 1, true) ~= nil
     end, 10),
     "initial results timed out"
   )
@@ -504,7 +515,7 @@ test("real fzf Ctrl-X safely deletes and reloads while the picker stays open", f
   api.nvim_chan_send(channel, "\21")
   assert(
     vim.wait(10000, function()
-      return table.concat(api.nvim_buf_get_lines(terminal, 0, -1, false), "\n"):find("first.lua", 1, true)
+      return table.concat(api.nvim_buf_get_lines(terminal, 0, -1, false), "\n"):find("first.lua", 1, true) ~= nil
     end, 10),
     "reloaded results timed out"
   )

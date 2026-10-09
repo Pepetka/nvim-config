@@ -1,0 +1,40 @@
+---@class TabBuffersFakeWindow
+---@field tab integer
+---@field buf integer
+---@field floating? boolean
+---@field preview? boolean
+
+---@class TabBuffersFakeState
+---@field tabs integer[]
+---@field windows table<integer, TabBuffersFakeWindow>
+---@field buffers table<integer, TabBuffersBufferFacts>
+---@field current_tab integer
+---@field current_win integer
+---@field excluded table<integer, boolean>
+---@field queued TabBuffersAction[]
+---@field published integer[][]
+---@field notices string[]
+---@field callbacks? TabBuffersCallbacks
+---@field installs integer
+---@field restores integer
+---@field next_buffer integer
+---@field exiting? boolean
+---@field fail_delete? boolean
+---@field fail_install? boolean
+---@field fail_buffers? boolean
+---@field fail_tabs? boolean
+---@field fail_switch? boolean
+---@field fail_replace? boolean
+---@field before_commit? TabBuffersAction
+---@class TabBuffersFakePanelState
+---@field snapshot TabBuffersPanelSnapshot
+---@field queued TabBuffersAction[]
+---@field callbacks? TabBuffersPanelCallbacks
+---@field styles TabBuffersHighlights
+---@field shown integer
+---@field redraws integer
+---@field installs integer
+---@field removed integer
+---@field notices string[]
+---@field fail_apply? boolean
+---@field fail_install? boolean

@@ -1,28 +1,35 @@
 local api = vim.api
 local buffers = require("tab_buffers")
 local M = {}
-local views = {}
+local review_rules = require("tab_buffers.core.reviews")
+local views = review_rules.new()
 
 ---Whether a tab is an observed Diffview or file-history review.
 ---@param tab integer
 ---@return boolean
 function M.is_review(tab)
-  return api.nvim_tabpage_is_valid(tab) and views[tab] ~= nil
+  return api.nvim_tabpage_is_valid(tab) and views.get(tab) ~= nil
 end
 
+---@return nil
 local function changed()
   api.nvim_exec_autocmds("User", { pattern = "TabBuffersContextChanged", modeline = false })
 end
 
 ---Pass these public hooks to diffview.setup(). Review tabs are owned by Diffview.
----@return table<string, function>
+---@return TabBuffersDiffviewHooks
 function M.hooks()
+  ---@param view TabBuffersReview
+  ---@return nil
   local function observe(view)
     local tab = view.tabpage
     if tab and api.nvim_tabpage_is_valid(tab) then
-      views[tab] = view
-      if vim.t[tab].tab_buffers_excluded ~= true then
+      local previous = views.get(tab)
+      local claimed = views.observe(tab, view, vim.t[tab].tab_buffers_excluded)
+      if claimed then
         vim.t[tab].tab_buffers_excluded = true
+      end
+      if claimed or previous ~= view then
         changed()
       end
     end
@@ -36,21 +43,34 @@ function M.hooks()
       if not tab then
         return
       end
-      views[tab] = nil
-      if api.nvim_tabpage_is_valid(tab) then
-        vim.t[tab].tab_buffers_excluded = nil
+      if views.get(tab) ~= view then
+        return
+      end
+      local valid = api.nvim_tabpage_is_valid(tab)
+      local current = valid and vim.t[tab].tab_buffers_excluded or nil
+      local restore, original = views.close(tab, view, current)
+      if valid then
+        if restore then
+          vim.t[tab].tab_buffers_excluded = original
+        end
         changed()
       end
     end,
   }
 end
 
+---@param new_tab boolean
+---@return integer?, string?
 local function go(new_tab)
-  local view = views[api.nvim_get_current_tabpage()]
+  views.prune(api.nvim_tabpage_is_valid)
+  local view = views.get(api.nvim_get_current_tabpage())
   if not view then
     -- Diffview attaches buffer-local mappings to local files reused in ordinary tabs.
     vim.cmd.normal({ new_tab and "\23gf" or "gf", bang = true })
     return
+  end
+  if not view.infer_cur_file then
+    return nil, "Review does not support local file navigation"
   end
   local file = view:infer_cur_file()
   if not file then
@@ -66,23 +86,19 @@ local function go(new_tab)
       cursor = api.nvim_win_get_cursor(win)
     end
   end
+  ---@param tab? integer
+  ---@return boolean
   local function available(tab)
-    return tab and api.nvim_tabpage_is_valid(tab) and vim.t[tab].tab_buffers_excluded ~= true and not views[tab]
+    return tab ~= nil
+      and api.nvim_tabpage_is_valid(tab)
+      and vim.t[tab].tab_buffers_excluded ~= true
+      and not views.get(tab)
   end
   local target
   if not new_tab then
     local tabs = api.nvim_list_tabpages()
     local previous = tabs[vim.fn.tabpagenr("#")]
-    if available(previous) then
-      target = previous
-    else
-      for _, tab in ipairs(tabs) do
-        if available(tab) then
-          target = tab
-          break
-        end
-      end
-    end
+    target = review_rules.destination(tabs, previous, available)
   end
   local buf = vim.fn.bufadd(file.absolute_path)
   vim.fn.bufload(buf)
@@ -104,6 +120,8 @@ local function go(new_tab)
   return opened, message
 end
 
+---@param new_tab boolean
+---@return integer?, string?
 local function navigate(new_tab)
   local ok, buf, err = pcall(go, new_tab)
   if not ok then
@@ -115,10 +133,12 @@ local function navigate(new_tab)
   return buf, err
 end
 
+---@return integer?, string?
 function M.goto_file()
   return navigate(false)
 end
 
+---@return integer?, string?
 function M.goto_file_tab()
   return navigate(true)
 end

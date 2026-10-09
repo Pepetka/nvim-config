@@ -32,9 +32,44 @@ local buffers = require("tab_buffers")
 -- function() buffers.close_others() end
 ```
 
+## Configuration
+
+The ownership adapter accepts optional settings; all defaults preserve the original behavior:
+
+```lua
+require("tab_buffers").setup({
+  close_empty_tab = true,
+  wrap = true,
+  replacement = "right",
+  bootstrap_hidden_buffers = true,
+  -- buffer_filter = function(buf, facts) return true end,
+  -- tab_filter = function(tab, facts) return true end,
+})
+```
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `close_empty_tab` | `true` | Close the source tab after its final member is closed/transferred when another tab exists. False retains the tab and an ordinary working window. Explicit `close_tab()` still closes it. |
+| `wrap` | `true` | Default for `switch`, `next` and `previous`. An operation's explicit `wrap` overrides it. |
+| `replacement` | `"right"` | `"right"` prefers the nearest remaining member to the right, then left; `"left"` reverses this preference. `"last_used"` chooses the most recently focused owned buffer, falling back to right/left. All policies skip pending close targets and ineligible members. |
+| `bootstrap_hidden_buffers` | `true` | Adopt pre-existing eligible hidden buffers during initial setup. False still adopts visible buffers and allows explicit `add()`. Reconfiguration does not rerun bootstrap. |
+| `buffer_filter` | unset | Callback `(buf, facts) → boolean` further restricts eligible buffers. Facts contain validity, listing, buftype, name, modified/loaded state and presence of text. |
+| `tab_filter` | unset | Callback `(tab, facts) → boolean` further restricts managed tabs. Facts contain validity and the native exclusion flag. `tabs()` still returns all real tabs for navigation. |
+
+Callbacks must return booleans, remain free of editor side effects and must not call managing methods.
+They run during reconciliation, so keep them inexpensive. They cannot enroll special buffers, empty drafts
+or excluded review tabs. Changing a filter releases rejected memberships without deleting text;
+explicit operations respect the same filters. Use `refresh()` or `User TabBuffersContextChanged` when
+external state used by a callback changes. Filtered orphan buffers remain alive outside ownership.
+
+Repeated `setup()` without arguments retains settings, membership and order. `setup(opts)` replaces settings
+using defaults for omitted fields, reconciles existing membership and preserves the previous state if
+configuration/filter evaluation fails. After teardown, setup without arguments starts with defaults.
+Focus history is session-local, independent for each tab, and cleared on teardown.
+
 ## Public Neovim API
 
-Call `setup()` before other methods. Repeated setup preserves membership and order and does not
+Call `setup()` before other methods. Repeated setup retains existing eligible membership and order and does not
 duplicate autocommands. `teardown()` disables observation, cancels queued work and discards the
 model without deleting real buffers. A later setup captures the current Neovim state again.
 
@@ -83,7 +118,7 @@ Options are optional tables. Each operation uses the applicable fields:
 | `buf` | The selected window's buffer. The positional argument to `add` overrides this field. |
 | `index` | Destination insertion position for `add` and `transfer`; defaults to the end. |
 | `force` | False; allows discarding modified exclusive buffers during close. Shared text is preserved even with force. |
-| `wrap` | True for navigation. False returns nil past either end. |
+| `wrap` | The configured `wrap` default (true initially). False returns nil past either end. |
 | `split` | Only for `open`: `"horizontal"` opens below, `"vertical"` opens to the right. |
 
 For example, `buffers.close({ tab = tab_handle, buf = buffer_id })` operates on a specific tab/buffer
@@ -94,7 +129,7 @@ return no change plus an error for managing operations. Queries return empty res
 
 Native commands are observed and reconciled on the next scheduled turn. Use `refresh()` when an
 immediate query after a native command needs current ownership. Public managing operations reconcile
-before and after execution. Do not reenter managing methods from a sort comparator or window callback;
+before execution and after native effects; model-only changes need no second pass. Do not reenter managing methods from a sort comparator or window callback;
 queries remain available during operations.
 
 `open()` never adopts a foreign buffer. Without an explicit window, it uses the tab's current working
@@ -130,7 +165,7 @@ still referenced by unmanaged windows are retained. Failures preserve membership
 window buffers where the handles remain valid. Other tabs and normal split layouts are preserved.
 
 Bulk close closes permitted targets and leaves failures owned by the tab. A zero-target operation
-does not close an empty tab. Closing/transferring the last owned buffer closes its source tab when
+does not close an empty tab. With `close_empty_tab = true`, closing/transferring the last owned buffer closes its source tab when
 other tabs exist. The final tab keeps empty working windows instead of quitting; if an explicit close
 from a special-only final tab needs a working window, an empty split is added while preserving focus.
 
@@ -259,6 +294,8 @@ The built-in native tabline is optional and uses the same ownership model:
 ```lua
 require("tab_buffers").setup()
 require("tab_buffers.tabline").setup({
+  visibility = "auto",
+  tab_width_ratio = 1 / 3,
   icons = true,
   max_name_length = 30,
   padding = 2,
@@ -267,7 +304,8 @@ require("tab_buffers.tabline").setup({
 })
 ```
 
-`setup(opts?)` accepts these five options and optional `highlights`. Defaults are icons enabled, a 30-cell maximum name,
+`setup(opts?)` accepts the options above and optional `highlights`. Defaults are automatic visibility,
+a one-third tab width ratio, icons enabled, a 30-cell maximum name,
 zero horizontal padding, and empty offset/hidden-filetype lists. Personal settings live in the host's `lua/configs/tabline.lua`.
 `highlights` is a table keyed by Fill/Buffer/Visible/Active/Tab/TabActive/Offset/Border/ActiveBorder/Overflow, or a callback
 returning that table on setup and ColorScheme. Foregrounds default to Normal, with Function/Special
@@ -288,7 +326,8 @@ Review tabs have no owned-buffer entries. Tab labels use stable tabpage handles 
 when their displayed numbers change. On narrow screens, both lists show contiguous sections around
 their active entries with bold `«N`/`N»` indicators showing the number of hidden elements. Muted `│` boundaries separate items; the active buffer and tab use a red `▎` boundary.
 Indicators are informational; navigate with the existing
-buffer/tab mappings. Tabs reserve up to roughly one third of the available space; remaining space
+buffer/tab mappings. `tab_width_ratio` accepts a finite number in `(0, 1]` and controls the tab width budget (one third by default),
+with a small minimum for usable labels and space reserved for an active buffer. Remaining space
 belongs to buffers. Extremely small spaces prioritize active entries over hidden-side indicators.
 
 Left click opens a buffer through `open`; middle click closes through safe `close` without force.
@@ -297,7 +336,8 @@ other tab clicks do nothing. Deferred actions preserve the displayed source tab 
 check membership/validity again and cancel after teardown or repeated setup. Tree and special windows
 are preserved, and modified exclusive buffers are never silently discarded.
 
-Visibility depends on multiple current-tab members or multiple actual tabs. Configured hidden
+`visibility = "auto"` depends on multiple current-tab members or multiple actual tabs; `"always"` shows
+the panel even for a single buffer/tab, and `"never"` hides it. Configured hidden
 filetypes hide the panel while focused. Offsets reserve the width and separator of configured
 full-height outer sidebars; floating and stacked windows do not reserve space. `padding` adds
 screen cells on both sides of the content, inside sidebar offsets. It shrinks on extremely narrow
@@ -376,20 +416,87 @@ switching from scope so its old autocommands and listing state are no longer act
 Installed but inactive scope and bufferline packages can remain until a separate package cleanup. Their lockfile
 entries must remain while installed: `vim.pack` repairs missing installed-package records on startup.
 
+## Architecture and types
+
+The plugin follows the same core/controller/integrations structure as the other standalone local plugins:
+
+- `init.lua` exports the typed singleton API. `controller.new(adapter)` creates an isolated ownership controller.
+- `core/` contains the ownership model, ordering, selection, validation, buffer/window policies,
+  reconciliation and close planning. It also owns tabline configuration, labels, clipping, layout,
+  sidebar geometry, presentation, picker selection and review lifecycle rules. These modules never access `vim`.
+- `integrations/nvim.lua` reads editor facts and supplies effects. `integrations/lifecycle.lua` owns
+  subscriptions; `integrations/windows.lua` owns protected window updates and `bufhidden` restoration.
+  Validity, ownership and close blockers are checked again immediately before committing external changes.
+- `tabline/controller.lua` manages panel snapshots, generations and deferred clicks through an injected adapter.
+  `integrations/tabline.lua` supplies native text metrics, editor geometry, icons, highlights and options.
+  `render()` only returns the last complete document.
+- `integrations/fzf.lua` and `integrations/diffview.lua` remain optional entry points;
+  selection, ordinary-tab choice and review exclusion ownership are tested separately in the core.
+- `types.lua` defines LuaCATS contracts for every public API, controller, adapter, fact, plan, report,
+  panel configuration and callback. Test fixtures have their own contracts in `tests/types.lua`.
+
+The existing `tab_buffers.core`, `tab_buffers.nvim` factory and `tab_buffers.tabline.layout` imports
+remain compatible. Core and controller tests run in LuaJIT without Neovim, and headless tests exercise
+the same functions with `vim` hidden after module loading.
+
+Panel setup validates and prepares the new document before replacing native resources. Failed initial setup
+restores options and removes new handlers; failed reconfiguration retains the previous panel.
+Theme callback errors preserve the last valid styles and publish a warning. Highlight literals and operation
+options are copied so later caller changes cannot alter an operation already in progress.
+Labels remain distinct after control-character sanitization, and clipping respects native screen-cell widths,
+including `ambiwidth=double`. Labels that collide after clipping carry buffer ID markers when the width allows it.
+Panel geometry and text widths update when relevant display/window options change.
+
+Diffview restores an exclusion flag only when the integration installed it, preserves a pre-existing flag
+and rejects close notifications from replaced views. Closure preserves partial reports when placeholder creation
+or observation fails; errors after committed changes do not hide what actually closed.
+Failed orphan recovery retains its snapshots for a later refresh, and failed `bufhidden` restoration is retried.
+Navigation verifies the destination after autocmds and reports redirection instead of false success.
+Changing `previewwindow` schedules ownership reconciliation; linked highlight overrides are resolved before
+removing backgrounds and reverse attributes.
+
+## Update costs and cache invalidation
+
+Ownership uses membership sets and a reverse buffer-to-owner index alongside the ordered lists.
+Reconciliation reads each buffer/tab/window fact once per observation phase and shares a window index
+for buffer-display checks. Phases end before native effects; safety checks after autocmds read fresh facts.
+A second window scan is needed only when closed-tab cleanup may have changed the editor.
+
+Text changes in already owned ordinary buffers do not scan other tabs. Buffer lifecycle/metadata events
+recheck only the affected buffers; newly eligible visible drafts enroll and hidden deleted/unlisted buffers
+release membership. With custom filters, events use full reconciliation because callback decisions may
+change independently of text. Public operations reconcile immediately; model-only operations skip the
+post-effect pass, and change publication does not repeat a completed observation. Structural events still
+trigger full observation; `refresh()` always forces it.
+
+The panel compares complete presentation snapshots before rebuilding. Unchanged snapshots retain their
+click targets and skip layout, option writes and redraw. Labels are prepared only when membership/names
+or clipping width change; suffix counts replace pairwise path comparisons. ASCII clipping uses a binary
+search; Unicode retains sequential clipping for exact grapheme behavior. Display-width memoization is
+bounded to 1,024 strings per panel instance and resets on display options, setup and theme changes.
+Native snapshots gather window geometry once, cache icons by buffer/name and refresh them on ColorScheme.
+Missing optional icon support is retried on themes or picked up when the provider module becomes loaded.
+Teardown discards caches; filename, modified state, focus, review state and geometry remain observed.
+
 ## Tests
 
 The suites require LuaJIT for the core or Neovim >=0.12, with no additional test framework.
 The standalone tabline suite requires only Neovim. UI integration tests additionally require installed fzf-lua and the fzf executable.
-Diffview tests require installed diffview-plus.nvim and Git.
+Diffview tests require installed diffview-plus.nvim and Git. The type check requires Lua Language Server
+(on PATH or installed through Mason; set `LUA_LS` to override the executable), and fails on errors or warnings. It checks every plugin module and test, automatically including the types
+of installed fzf-lua, Diffview and nvim-web-devicons from native optional/start packages. This also catches
+interface mismatches that appear when LazyDev loads dependency types in the editor.
 Run from this plugin's root:
 
 ```sh
-luajit tests/core.lua
-nvim --clean --headless -i NONE -l tests/core.lua
-nvim --clean --headless -i NONE -l tests/nvim.lua
-nvim --clean --headless -i NONE -l tests/tabline.lua
-nvim --clean --headless -i NONE -l tests/integrations.lua
-nvim --clean --headless -i NONE -l tests/diffview.lua
+for suite in core policies controller panel_controller; do
+  luajit "tests/$suite.lua"
+done
+
+for suite in core policies controller panel_controller adapter settings optimization nvim tabline integrations diffview types_check; do
+  nvim --clean --headless -i NONE -l "tests/$suite.lua"
+done
+
 stylua --check .
 ```
 
@@ -423,3 +530,18 @@ multi-close, split selection, real buffer previews, reload and resume across tab
 Diffview coverage includes staged/working previews, file history, multiple reviews, actual host setup,
 scoped UI exclusion, dirty index guards, native closure, shared files, safe ordinary-tab selection,
 new-tab navigation, special-only destinations and missing files.
+
+Pure controller coverage includes independent instances, initialization rollback, generation cancellation,
+coalesced changes, navigation and every close mode, sharing, transfer, reentrant comparators,
+partial failures and committed results when later reconciliation fails.
+Adapter regressions cover partially prepared protection, nested `bufhidden` guards, placeholder failures,
+transactional panel setup, native highlight rollback, failed theme callbacks, review flag restoration,
+stale review notifications and ambiguous-width Unicode clipping.
+
+Settings tests cover navigation defaults/overrides, close/transfer retention and explicit tab closure,
+left and last-used replacements, bootstrap control, safe buffer/tab filters, failed reconfiguration
+rollback, native inactive special-only tabs, visibility modes and configurable tab width budgets.
+
+Optimization regressions assert bounded fact/window reads, targeted draft/deletion handling, dynamic-filter
+reconciliation, failed-observation recovery, stable click targets and skipped unchanged redraws. Native tests
+exercise a 101-buffer panel, width/icon reuse on focus changes, display/theme invalidation and hidden deletion.

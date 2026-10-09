@@ -1,6 +1,8 @@
 -- nvim --clean --headless -i NONE -l tests/tabline.lua
 local root = vim.fs.dirname(vim.fs.dirname(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p")))
 vim.opt.rtp:prepend(root)
+package.path = root .. "/tests/?.lua;" .. package.path
+local support = require("support")
 vim.o.swapfile, vim.o.hidden = false, true
 local api = vim.api
 local buffers = require("tab_buffers")
@@ -9,12 +11,13 @@ local layout = require("tab_buffers.tabline.layout")
 local reviews = require("tab_buffers.integrations.diffview")
 local tests, sequence, notices = {}, 0, {}
 local notify = vim.notify
+-- Intentional native API replacement for failure injection.
+---@diagnostic disable-next-line: duplicate-set-field
 vim.notify = function(msg)
   notices[#notices + 1] = msg
 end
-local function equal(actual, expected)
-  assert(vim.deep_equal(actual, expected), "expected " .. vim.inspect(expected) .. ", got " .. vim.inspect(actual))
-end
+local equal = support.equal
+---@return nil
 local function drain()
   for _ = 1, 4 do
     local done = false
@@ -26,6 +29,7 @@ local function drain()
     end, 1))
   end
 end
+---@return nil
 local function reset()
   line.teardown()
   buffers.teardown()
@@ -45,6 +49,8 @@ local function reset()
   buffers.setup()
   notices = {}
 end
+---@param name? string
+---@return integer
 local function file(name)
   sequence = sequence + 1
   local buf = api.nvim_create_buf(true, false)
@@ -56,6 +62,8 @@ local function file(name)
   buffers.add(buf)
   return buf
 end
+---@param buf integer
+---@return nil
 local function show(buf)
   api.nvim_set_current_buf(buf)
   drain()
@@ -64,16 +72,22 @@ local function rendered()
   drain()
   return api.nvim_eval_statusline(line.render(), { use_tabline = true, maxwidth = vim.o.columns, highlights = true })
 end
+---@param text string
+---@param kind? string
+---@return integer
 local function token(text, kind)
   drain()
   for hl, id, label in line.render():gmatch("%%#TabBuffers(%w+)#%%(%d+)@[^@]+@(.-)%%X") do
     local is_tab = hl == "Tab" or hl == "TabActive"
     if (kind == "tab") == is_tab and label:find(text, 1, true) then
-      return tonumber(id)
+      return assert(tonumber(id))
     end
   end
   error("missing click target: " .. text)
 end
+---@param name string
+---@param fn fun(): nil
+---@return nil
 local function test(name, fn)
   tests[#tests + 1] = { name = name, run = fn }
 end
@@ -132,6 +146,7 @@ test("overflow markers count hidden entries and border highlights distinguish ac
   local fitted, before, after = layout.fit(items, 5, 20)
   equal(before, "«4 ")
   equal(after, " 5»")
+  ---@cast fitted { id: integer, text: string }[]
   equal(fitted[1].id, 5)
   local a = file("first.lua")
   file("second.lua")
@@ -259,7 +274,8 @@ test("tab numbers and Diffview marker use handles after renumbering", function()
   vim.cmd.tabnew()
   local review = api.nvim_get_current_tabpage()
   local hooks = reviews.hooks()
-  hooks.view_opened({ tabpage = review })
+  local observed = { infer_cur_file = function() end, tabpage = review }
+  hooks.view_opened(observed)
   line.setup({ icons = false })
   equal(buffers.buffers(review), {})
   assert(rendered().str:find("󰊢 2", 1, true))
@@ -273,7 +289,7 @@ test("tab numbers and Diffview marker use handles after renumbering", function()
   drain()
   equal(api.nvim_get_current_tabpage(), review)
   assert(rendered().str:find("󰊢 3", 1, true))
-  hooks.view_closed({ tabpage = review })
+  hooks.view_closed(observed)
   assert(not reviews.is_review(review))
 end)
 
@@ -390,6 +406,8 @@ test("native mouse dispatch opens and closes through the tabline callback", func
     ]],
       { root }
     )
+    assert(type(ids) == "table")
+    ---@cast ids integer[]
     local function position()
       local text = vim.rpcrequest(
         child,
@@ -399,6 +417,7 @@ test("native mouse dispatch opens and closes through the tabline callback", func
       ]],
         {}
       )
+      assert(type(text) == "string")
       return vim.fn.strdisplaywidth(text:sub(1, assert(text:find("mouse-second.lua", 1, true)) - 1))
     end
     vim.rpcrequest(child, "nvim_input_mouse", "left", "press", "", 0, 0, position())

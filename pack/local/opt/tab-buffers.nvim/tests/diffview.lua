@@ -2,6 +2,8 @@
 -- Requires installed diffview-plus.nvim; Git fixtures are isolated in a temp directory.
 local root = vim.fs.dirname(vim.fs.dirname(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p")))
 vim.opt.rtp:prepend(root)
+package.path = root .. "/tests/?.lua;" .. package.path
+local support = require("support")
 vim.opt.packpath:append(vim.fn.stdpath("data") .. "/site")
 vim.o.swapfile, vim.o.hidden = false, true
 vim.o.columns, vim.o.lines = 160, 50
@@ -17,14 +19,15 @@ local original_cwd = vim.fn.getcwd()
 local fixture = vim.fn.tempname()
 vim.fn.mkdir(fixture, "p")
 fixture = assert(vim.uv.fs_realpath(fixture))
+-- Intentional native API replacement for failure injection.
+---@diagnostic disable-next-line: duplicate-set-field
 vim.notify = function(message)
   notices[#notices + 1] = message
 end
 
-local function equal(actual, expected)
-  assert(vim.deep_equal(actual, expected), "expected " .. vim.inspect(expected) .. ", got " .. vim.inspect(actual))
-end
+local equal = support.equal
 
+---@return nil
 local function drain()
   for _ = 1, 3 do
     local done = false
@@ -61,6 +64,7 @@ local function setup_view_config()
   })
 end
 
+---@return nil
 local function reset()
   for _, view in ipairs(views) do
     if api.nvim_tabpage_is_valid(view.tabpage) then
@@ -371,7 +375,7 @@ test("gf refuses a deleted local file without creating a tab or changing focus",
   local win, count = api.nvim_get_current_win(), #api.nvim_list_tabpages()
   local opened, err = integration.goto_file()
   equal(opened, nil)
-  assert(err:find("does not exist", 1, true))
+  assert(err and err:find("does not exist", 1, true))
   equal(api.nvim_get_current_win(), win)
   equal(#api.nvim_list_tabpages(), count)
   equal(#notices, 1)
@@ -441,6 +445,8 @@ test("host Diffview configuration wires exclusion and safe navigation", function
   end
   vim.opt.rtp:append(host)
   local setup = diffview.setup
+  -- Intentional interception of the installed dependency during host-config verification.
+  ---@diagnostic disable-next-line: duplicate-set-field
   diffview.setup = function(options)
     local observe = options.hooks.view_opened
     options.hooks.view_opened = function(view)

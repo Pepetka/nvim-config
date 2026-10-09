@@ -1,12 +1,16 @@
 -- nvim --clean --headless -i NONE -l tests/nvim.lua
 local root = vim.fs.dirname(vim.fs.dirname(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p")))
 vim.opt.rtp:prepend(root)
+package.path = root .. "/tests/?.lua;" .. package.path
+local support = require("support")
 vim.o.swapfile = false
 local api = vim.api
 local plugin = require("tab_buffers")
 local tests, notices = {}, {}
 local sequence = 0
 local real_notify = vim.notify
+-- Intentional native API replacement for failure injection.
+---@diagnostic disable-next-line: duplicate-set-field
 vim.notify = function(message)
   notices[#notices + 1] = message
 end
@@ -16,18 +20,11 @@ local saved = {
   nvim_open_win = api.nvim_open_win,
 }
 
-local function equal(actual, expected)
-  assert(vim.deep_equal(actual, expected), "expected " .. vim.inspect(expected) .. ", got " .. vim.inspect(actual))
-end
+local equal = support.equal
 
-local function raises(fn, text)
-  local ok, err = pcall(fn)
-  assert(not ok, "expected an error")
-  if text then
-    assert(tostring(err):find(text, 1, true), tostring(err))
-  end
-end
+local raises = support.raises
 
+---@return nil
 local function drain()
   for _ = 1, 2 do
     local ready = false
@@ -43,6 +40,9 @@ local function drain()
   end
 end
 
+---@param name? string
+---@param lines? string[]
+---@return integer
 local function file(name, lines)
   sequence = sequence + 1
   local buf = api.nvim_create_buf(true, false)
@@ -52,11 +52,14 @@ local function file(name, lines)
   return buf
 end
 
+---@param buf integer
+---@return nil
 local function show(buf)
   api.nvim_set_current_buf(buf)
   drain()
 end
 
+---@return nil
 local function reset()
   for name, fn in pairs(saved) do
     api[name] = fn
@@ -90,6 +93,9 @@ local function reset()
   drain()
 end
 
+---@param name string
+---@param fn fun(): nil
+---@return nil
 local function test(name, fn)
   tests[#tests + 1] = { name = name, run = fn }
 end
@@ -354,9 +360,13 @@ test("stale handles and invalid arguments have no side effects", function()
     plugin.add(a, { tab = 0 })
   end)
   raises(function()
+    -- Deliberately invalid input verifies the runtime boundary.
+    ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
     plugin.next({ wrap = 1 })
   end)
   raises(function()
+    -- Deliberately invalid input verifies the runtime boundary.
+    ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
     plugin.sort("unknown")
   end)
   raises(function()
@@ -539,6 +549,8 @@ test("window-update failures roll back all original splits and membership", func
   vim.cmd("vsplit")
   local windows = api.nvim_list_wins()
   local calls = 0
+  -- Intentional native API replacement for failure injection.
+  ---@diagnostic disable-next-line: duplicate-set-field
   api.nvim_win_set_buf = function(win, buf)
     calls = calls + 1
     if calls == 2 then
@@ -562,6 +574,8 @@ test("deletion failures restore windows, text and destructive bufhidden options"
   show(a)
   show(b)
   vim.bo[b].bufhidden = "delete"
+  -- Intentional native API replacement for failure injection.
+  ---@diagnostic disable-next-line: duplicate-set-field
   api.nvim_buf_delete = function(buf, opts)
     if buf == b then
       error("injected deletion failure")
@@ -743,6 +757,8 @@ test("orphan deletion failure recovers the buffer and is included in the close r
   vim.cmd("tabnew")
   show(b)
   local second = api.nvim_get_current_tabpage()
+  -- Intentional native API replacement for failure injection.
+  ---@diagnostic disable-next-line: duplicate-set-field
   api.nvim_buf_delete = function(buf, opts)
     if buf == a then
       error("cannot delete orphan")
@@ -811,6 +827,8 @@ test("navigation errors after changing a window restore the original buffer", fu
   show(a)
   show(b)
   local calls = 0
+  -- Intentional native API replacement for failure injection.
+  ---@diagnostic disable-next-line: duplicate-set-field
   api.nvim_win_set_buf = function(win, buf)
     calls = calls + 1
     saved.nvim_win_set_buf(win, buf)
@@ -820,7 +838,7 @@ test("navigation errors after changing a window restore the original buffer", fu
   end
   local selected, err = plugin.next()
   equal(selected, nil)
-  assert(err:find("post-switch error", 1, true))
+  assert(err and err:find("post-switch error", 1, true))
   equal(api.nvim_get_current_buf(), b)
   equal(plugin.buffers(), { a, b })
 end)
@@ -850,12 +868,14 @@ test("transfer failures preserve the source and never create destination members
   vim.cmd("tabnew")
   local second = api.nvim_get_current_tabpage()
   api.nvim_set_current_tabpage(first)
+  -- Intentional native API replacement for failure injection.
+  ---@diagnostic disable-next-line: duplicate-set-field
   api.nvim_win_set_buf = function()
     error("transfer window error")
   end
   local moved, err = plugin.transfer(second)
   equal(moved, false)
-  assert(err:find("transfer window error", 1, true))
+  assert(err and err:find("transfer window error", 1, true))
   equal(plugin.buffers(first), { a, b })
   equal(plugin.buffers(second), {})
   equal(api.nvim_get_current_buf(), a)
@@ -872,6 +892,8 @@ test("transfer rechecks a destination closed by third-party window callbacks", f
   local second = api.nvim_get_current_tabpage()
   api.nvim_set_current_tabpage(first)
   local once = false
+  -- Intentional native API replacement for failure injection.
+  ---@diagnostic disable-next-line: duplicate-set-field
   api.nvim_win_set_buf = function(win, buf)
     saved.nvim_win_set_buf(win, buf)
     if not once then
@@ -881,7 +903,7 @@ test("transfer rechecks a destination closed by third-party window callbacks", f
   end
   local moved, err = plugin.transfer(second)
   equal(moved, false)
-  assert(err:find("target tab closed", 1, true))
+  assert(err and err:find("target tab closed", 1, true))
   equal(plugin.buffers(first), { a, b })
   equal(api.nvim_get_current_buf(), a)
 end)
@@ -900,6 +922,8 @@ test("transfer no-ops and stale closing handles do not change state", function()
     plugin.transfer(0)
   end)
   raises(function()
+    -- Deliberately invalid input verifies the runtime boundary.
+    ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
     plugin.close({ force = 1 })
   end)
   equal(plugin.buffers(), { a })
@@ -1070,6 +1094,8 @@ test("errors after a committed deletion report the real outcome and close an emp
   local first = api.nvim_get_current_tabpage()
   vim.cmd("tabnew")
   show(b)
+  -- Intentional native API replacement for failure injection.
+  ---@diagnostic disable-next-line: duplicate-set-field
   api.nvim_buf_delete = function(buf, opts)
     saved.nvim_buf_delete(buf, opts)
     if buf == a then
@@ -1215,6 +1241,8 @@ test("open rejects non-members, invalid handles and explicit special windows", f
   equal(select(1, plugin.open(a, { win = win })), nil)
   equal(api.nvim_win_get_buf(win), tree)
   raises(function()
+    -- Deliberately invalid input verifies the runtime boundary.
+    ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
     plugin.open(a, { split = "diagonal" })
   end, "split")
 end)
@@ -1232,6 +1260,8 @@ test("open can target another tab and restores the original window on failure", 
   equal(api.nvim_get_current_win(), win)
   plugin.add(a)
   local original = api.nvim_win_get_buf(win)
+  -- Intentional native API replacement for failure injection.
+  ---@diagnostic disable-next-line: duplicate-set-field
   api.nvim_win_set_buf = function(target, buf)
     saved.nvim_win_set_buf(target, buf)
     if buf == a then
@@ -1240,7 +1270,7 @@ test("open can target another tab and restores the original window on failure", 
   end
   local opened, err = plugin.open(a)
   equal(opened, nil)
-  assert(err:find("injected open failure", 1, true))
+  assert(err and err:find("injected open failure", 1, true))
   equal(api.nvim_win_get_buf(win), original)
 end)
 
@@ -1249,12 +1279,14 @@ test("open reports split creation errors without losing windows or focus", funct
   show(a)
   plugin.setup()
   local win = api.nvim_get_current_win()
+  -- Intentional native API replacement for failure injection.
+  ---@diagnostic disable-next-line: duplicate-set-field
   api.nvim_open_win = function()
     error("injected split failure")
   end
   local opened, err = plugin.open(b, { split = "vertical" })
   equal(opened, nil)
-  assert(err:find("injected split failure", 1, true))
+  assert(err and err:find("injected split failure", 1, true))
   equal(api.nvim_get_current_win(), win)
   equal(api.nvim_win_get_buf(win), a)
   equal(#api.nvim_tabpage_list_wins(0), 1)
@@ -1350,7 +1382,7 @@ test("excluded tabs drop membership without deletion and all management function
   equal(plugin.close_tab({ tab = review }).tab_closed, false)
   local changed, err = plugin.transfer(review, { tab = first, buf = a })
   equal(changed, false)
-  assert(err:find("unmanaged", 1, true))
+  assert(err and err:find("unmanaged", 1, true))
   equal(api.nvim_win_get_buf(win), b)
   equal(api.nvim_tabpage_is_valid(review), true)
   vim.cmd("tabclose")

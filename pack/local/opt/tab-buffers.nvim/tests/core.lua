@@ -1,30 +1,20 @@
 -- Run with LuaJIT or nvim --clean --headless -i NONE -l tests/core.lua.
 local source = debug.getinfo(1, "S").source:sub(2)
 local test_dir = source:match("^(.*[/\\])") or "./"
-package.path = test_dir .. "../lua/?.lua;" .. package.path
+package.path = test_dir .. "?.lua;" .. test_dir .. "../lua/?.lua;" .. package.path
 
 -- Neovim's module searcher itself needs vim; load before disabling its globals.
 local core = require("tab_buffers.core")
+local support = require("support")
 -- Exercise every core method without Neovim globals, even under the headless runner.
 local host_vim = rawget(_G, "vim")
 _G.vim = nil
 local tests = {}
 
-local function equal(actual, expected, path)
-  path = path or "result"
-  assert(type(actual) == type(expected), path .. ": types differ")
-  if type(expected) ~= "table" then
-    assert(actual == expected, path .. ": expected " .. tostring(expected) .. ", got " .. tostring(actual))
-    return
-  end
-  for key, value in pairs(expected) do
-    equal(actual[key], value, path .. "." .. tostring(key))
-  end
-  for key in pairs(actual) do
-    assert(expected[key] ~= nil, path .. ": unexpected key " .. tostring(key))
-  end
-end
+local equal = support.equal
 
+---@param model TabBuffersCore
+---@return table<integer, integer[]>
 local function snapshot(model)
   local result = {}
   for _, tab in ipairs(model:tabs()) do
@@ -33,18 +23,16 @@ local function snapshot(model)
   return result
 end
 
-local function raises(fn, pattern)
-  local ok, err = pcall(fn)
-  assert(not ok, "expected an error")
-  if pattern then
-    assert(tostring(err):find(pattern, 1, true), "unexpected error: " .. tostring(err))
-  end
-end
+local raises = support.raises
 
+---@param name string
+---@param fn fun(): nil
+---@return nil
 local function test(name, fn)
   tests[#tests + 1] = { name = name, run = fn }
 end
 
+---@return TabBuffersCore
 local function fixture()
   local model = core.new()
   for _, buf in ipairs({ 10, 20, 30, 40 }) do
@@ -229,6 +217,8 @@ test("invalid IDs and positions fail before changing state", function()
     end)
   end
   raises(function()
+    -- Deliberately invalid input verifies the runtime boundary.
+    ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
     model:ensure_tab(nil)
   end)
   equal(snapshot(model), before)
@@ -472,10 +462,14 @@ test("invalid ordering and navigation arguments do not change state", function()
       model:neighbor(1, 10, invalid)
     end)
     raises(function()
+      -- Deliberately invalid input verifies the runtime boundary.
+      ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
       model:sort(1, invalid)
     end)
   end
   raises(function()
+    -- Deliberately invalid input verifies the runtime boundary.
+    ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
     model:neighbor(1, 10, 1, 1)
   end)
   raises(function()
@@ -638,10 +632,14 @@ test("invalid selections fail without changing state", function()
   local before = snapshot(model)
   for _, mode in ipairs({ "invalid", false, {}, 1 }) do
     raises(function()
+      -- Deliberately invalid input verifies the runtime boundary.
+      ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
       model:targets(1, mode, 10)
     end, "target mode")
   end
   raises(function()
+    -- Deliberately invalid input verifies the runtime boundary.
+    ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
     model:targets(1, nil)
   end)
   raises(function()
@@ -651,6 +649,8 @@ test("invalid selections fail without changing state", function()
     model:targets(1, "all", 0)
   end)
   raises(function()
+    -- Deliberately invalid input verifies the runtime boundary.
+    ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
     model:targets(1, "others", "10")
   end)
   raises(function()
@@ -658,10 +658,14 @@ test("invalid selections fail without changing state", function()
   end)
   for _, invalid in ipairs({ false, { 0 }, { 1.5 }, { [2] = 10 }, { 10, other = 20 } }) do
     raises(function()
+      -- Deliberately invalid input verifies the runtime boundary.
+      ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
       model:plan_close(1, invalid)
     end)
   end
   raises(function()
+    -- Deliberately invalid input verifies the runtime boundary.
+    ---@diagnostic disable-next-line: param-type-mismatch, assign-type-mismatch
     model:plan_close(1, nil)
   end)
   equal(snapshot(model), before)

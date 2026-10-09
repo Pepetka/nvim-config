@@ -3,12 +3,15 @@ local buffers = require("tab_buffers")
 local M = {}
 
 ---Open a tab-local buffer picker. Resume rebuilds the current tab's membership list.
----@param opts? table Visual fzf-lua options.
+---@param opts? TabBuffersFzfOptions Visual fzf-lua options.
+---@return unknown
 function M.buffers(opts)
   assert(opts == nil or type(opts) == "table", "opts must be a table")
   buffers.refresh()
   local fzf = require("fzf-lua")
+  ---@type { tab?: integer }
   local session = {}
+  ---@type TabBuffersFzfOptions
   local configured = vim.tbl_deep_extend("force", {
     prompt = "Buffers❯ ",
     file_icons = true,
@@ -23,21 +26,20 @@ function M.buffers(opts)
     ["--header-lines"] = 0,
   })
 
+  ---@param selected string[]
+  ---@return integer[]
   local function selected_ids(selected)
     if not session.tab or not api.nvim_tabpage_is_valid(session.tab) then
       return {}
     end
     buffers.refresh()
-    local ids = {}
-    for _, entry in ipairs(selected) do
-      local buf = tonumber(entry:match("^%[(%d+)%]"))
-      if buf and buffers.contains(buf, session.tab) then
-        ids[#ids + 1] = buf
-      end
-    end
-    return ids
+    return require("tab_buffers.core.picker").selected(selected, function(buf)
+      return buffers.contains(buf, session.tab)
+    end)
   end
 
+  ---@param split? "horizontal"|"vertical"
+  ---@return TabBuffersFzfAction
   local function open(split)
     return function(selected)
       local buf = selected_ids(selected)[1]
@@ -65,8 +67,11 @@ function M.buffers(opts)
     },
   }
 
+  ---@param cb TabBuffersFzfWriter
+  ---@return nil
   local contents = function(cb)
     -- fzf-lua may request contents from an RPC/fast callback.
+    ---@return nil
     local function generate()
       buffers.refresh()
       session.tab = api.nvim_get_current_tabpage()
