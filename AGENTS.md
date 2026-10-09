@@ -98,8 +98,8 @@ Tailwind LSP starts when an ancestor `package.json` declares `tailwindcss` in
 The server detects v3 configs and v4 CSS entrypoints itself.
 
 CSS-in-JS template completion uses the local `css-in-js.nvim` Blink source (`css_in_js`) with `cssls`,
-independently of the TS server. Its `css_in_js.regions` module extracts the active template, masks
-`${...}`, and maps completion edits back to the host document. Hidden buffers remain in memory.
+independently of the TS server. Its Tree-sitter integration finds the active template; the pure core masks
+`${...}` and maps completion edits back to the host document. Hidden buffers remain in memory.
 `K` routes CSS hover requests through the same source; outside CSS it uses regular LSP hover.
 
 ### Formatting

@@ -1,0 +1,48 @@
+---@class CssInJsTestTimer
+---@field at integer
+---@field run CssInJsCancel
+---@field cancelled boolean
+
+---@class CssInJsTestState
+---@field time integer
+---@field tick? integer
+---@field filetype string
+---@field buftype string
+---@field text string[]
+---@field region CssInJsRegion
+---@field cursor integer[]
+---@field client CssInJsClient
+---@field valid boolean
+---@field writes integer
+---@field creates integer
+---@field closes integer
+---@field cancelled integer[]
+---@field timers CssInJsTestTimer[]
+---@field replies CssInJsReply[]
+---@field messages string[]
+---@field deleted? fun(buf: integer): nil
+---@field fallback integer
+---@field hovers integer
+---@field fail_create? boolean
+---@field fail_write? boolean
+---@field fail_close? boolean
+---@field fail_request? boolean
+---@field fail_install? boolean
+---@field fail_extract? boolean
+---@field unavailable? boolean
+---@field partial? boolean
+---@field sync? boolean
+---@field hover_result? lsp.Hover
+
+---@class CssInJsMockClient
+---@field id integer
+---@field name string
+---@field initialized boolean
+---@field offset_encoding CssInJsEncoding
+---@field attached_buffers table<integer, string>
+---@field stopped boolean
+---@field is_stopped fun(self: CssInJsMockClient): boolean
+---@field supports_method fun(self: CssInJsMockClient): boolean
+---@field stop fun(self: CssInJsMockClient): nil
+---@field request fun(self: CssInJsMockClient, method: CssInJsMethod, params: unknown, callback: CssInJsReply): boolean, integer
+---@field cancel_request fun(self: CssInJsMockClient): nil
