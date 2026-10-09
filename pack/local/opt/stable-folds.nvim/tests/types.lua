@@ -1,0 +1,31 @@
+---@alias StableFoldsTestFailure "collect" | "context" | "lines" | "apply" | "install" | "recompute" | "windows"
+
+---@class StableFoldsTestState
+---@field current integer
+---@field contexts table<integer, StableFoldsContext>
+---@field text table<integer, string[]>
+---@field raw table<integer, StableFoldsRawRange[]>
+---@field unavailable table<integer, boolean>
+---@field marks table<integer, table<integer, integer>>
+---@field enabled table<integer, boolean>
+---@field opened table<integer, integer[]>
+---@field next_id integer
+---@field parses integer
+---@field reads integer
+---@field size_reads? integer
+---@field context_reads? integer
+---@field position_reads? integer
+---@field mark_writes? integer
+---@field recomputes table<integer, integer>
+---@field clears integer
+---@field installs integer
+---@field uninstalls integer
+---@field messages string[]
+---@field callbacks? StableFoldsCallbacks
+---@field fail? StableFoldsTestFailure
+---@field fail_win? integer
+---@field on_collect? StableFoldsAction
+---@field on_recompute? StableFoldsAction
+---@field watchers table<integer, StableFoldsBeforeChange>
+---@field closed table<integer, table<integer, boolean>>
+---@field restored table<integer, StableFoldsFoldState[]>

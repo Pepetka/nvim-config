@@ -1,10 +1,18 @@
 local folds = require("stable_folds")
 
-folds.setup({
+---@type StableFoldsOptions
+local options = {
+  new_folds = "open",
+  include_injections = true,
+  max_lines = 0,
+  max_bytes = 0,
+  notify_errors = true,
   filter = function(buf)
     return not vim.b[buf].bigfile
   end,
-})
+}
+
+folds.setup(options)
 
 vim.opt.foldmethod = "expr"
 vim.opt.foldexpr = folds.foldexpr
