@@ -5,7 +5,8 @@ vim.opt.rtp:append(vim.env.PACKAGE_INFO_TEST_PARSER_RTP or vim.fn.stdpath("data"
 local function check(value, message)
   assert(value, message)
 end
-local helper = require("package_info.helper")
+local adapter = require("package_info.integrations.nvim").new()
+local helper = adapter.helper
 helper.runtime = vim.env.PACKAGE_INFO_TEST_RUNTIME or helper.runtime
 if vim.uv.fs_stat(helper.runtime .. "/node_modules/semver") then
   vim.fn.writefile(
@@ -16,8 +17,10 @@ if vim.uv.fs_stat(helper.runtime .. "/node_modules/semver") then
 end
 local real_system = vim.system
 local pending, commands, concurrent, peak, per_project = {}, {}, 0, 0, {}
+local info
 local faults = {}
 local metadata = vim.json.encode({ versions = { "1.0.0", "1.2.0", "2.0.0" }, ["dist-tags"] = { latest = "2.0.0" } })
+---@diagnostic disable-next-line: duplicate-set-field
 vim.system = function(command, options, callback)
   if command[1] == "node" or command[2] == "ci" then
     return real_system(command, options, callback)
@@ -59,14 +62,16 @@ local function settle()
       while #pending > 0 do
         respond(table.remove(pending, 1))
       end
-      return require("package_info.queue").active == 0 and next(helper.pending) == nil and helper.state == "ready"
+      return adapter.queue.active == 0
+        and next(helper.pending) == nil
+        and helper.state == "ready"
+        and info.renderer.pending() == 0
     end, 10),
     "test timed out: " .. (helper.error or helper.state)
   )
 end
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
-local info
 local function fixture(name, deps, manager)
   local dir = root .. "/" .. name
   vim.fn.mkdir(dir, "p")
@@ -85,7 +90,7 @@ local function fixture(name, deps, manager)
   vim.cmd.edit(vim.fn.fnameescape(dir .. "/package.json"))
   return vim.api.nvim_get_current_buf()
 end
-info = require("package_info")
+info = require("package_info.controller").new(adapter)
 info.setup({ fast_registry = false })
 local first = fixture("first", { example = "^1", another = "^1", third = "^1", fourth = "^1" })
 settle()
@@ -93,11 +98,34 @@ local state = info.buffers[first]
 check(state and not state.error, "initial lookup failed")
 check(#state.context.dependencies == 5, "section identities lost")
 check(state.context.dependencies[1].result ~= nil, "comparison missing")
-check(#vim.api.nvim_buf_get_extmarks(first, info.namespace, 0, -1, {}) > 0, "no annotations")
+check(#vim.api.nvim_buf_get_extmarks(first, adapter.namespace, 0, -1, {}) > 0, "no annotations")
 local network_count = #commands
 info.refresh(first)
 settle()
 check(#commands == network_count, "cache did not avoid registry requests")
+-- Declarations and installed versions are inspected again; registry versions are reusable across range edits.
+local manifest_file = vim.api.nvim_buf_get_name(first)
+local manifest_data = vim.json.decode(table.concat(vim.fn.readfile(manifest_file), "\n"))
+manifest_data.dependencies.example = "^2"
+vim.fn.writefile({ vim.json.encode(manifest_data) }, manifest_file)
+vim.cmd.edit({ args = { manifest_file }, bang = true })
+info.refresh(first)
+settle()
+check(#commands == network_count, "a range edit repeated CLI registry requests")
+local range_checked = false
+for _, dep in ipairs(info.buffers[first].context.dependencies) do
+  if dep.name == "example" and dep.section == "dependencies" then
+    check(dep.result.wanted == "2.0.0", "reused metadata retained the old range comparison")
+    range_checked = true
+  end
+end
+check(range_checked, "edited declaration missing")
+-- Registry configuration changes must still invalidate reused CLI metadata.
+vim.fn.writefile({ "registry=https://registry.example.test" }, vim.fs.dirname(manifest_file) .. "/.npmrc")
+info.refresh(first)
+settle()
+check(#commands > network_count, "registry configuration change reused CLI metadata")
+network_count = #commands
 info.refresh(first, true)
 settle()
 check(#commands > network_count + 1, "forced refresh did not bypass cache")
@@ -112,7 +140,7 @@ check(
 vim.api.nvim_buf_set_lines(first, 0, -1, false, { '{ "dependencies": { "example": "^9" } }' })
 vim.api.nvim_exec_autocmds("TextChanged", { buffer = first })
 settle()
-check(#vim.api.nvim_buf_get_extmarks(first, info.namespace, 0, -1, {}) == 0, "stale results reappeared")
+check(#vim.api.nvim_buf_get_extmarks(first, adapter.namespace, 0, -1, {}) == 0, "stale results reappeared")
 check(info.buffers[first] == nil, "edited buffer retained old state")
 -- Unsaved invalid JSON produces no requests. Duplicate keys are rejected by Tree-sitter mapping.
 local count = #commands
@@ -132,7 +160,7 @@ vim.api.nvim_buf_set_lines(first, 0, -1, false, {
   "}",
 })
 vim.bo[first].modified = false
-local parsed = require("package_info.manifest").parse(first)
+local parsed = assert(adapter.manifest(first))
 check(
   parsed.lines["dependencies:example"] == 1 and parsed.lines["devDependencies:example"] == 2,
   "wrong Tree-sitter mapping"
@@ -225,7 +253,7 @@ check(
   vim.api.nvim_get_hl(0, { name = "PackageInfoUpdate", link = true }).link == "DiagnosticInfo",
   "theme callback failed"
 )
-local registry = require("package_info.registry")
+local registry = require("package_info.core.registry")
 check(registry.error({ code = 124 }) == "timeout", "timeout classification")
 check(registry.error({ code = 1, stderr = "Environment variable not found" }) == "config", "config classification")
 check(registry.error({ code = 1, stderr = "404 not found" }) == "not_found", "404 classification")
@@ -272,6 +300,7 @@ for _, dep in ipairs(info.buffers[unavailable].context.dependencies) do
     unavailable_result = dep.result
   end
 end
+unavailable_result = assert(unavailable_result)
 check(
   unavailable_result.status == "unavailable" and unavailable_result.wanted == nil,
   "unavailable range was not explicit"

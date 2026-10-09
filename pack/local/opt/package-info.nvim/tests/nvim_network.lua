@@ -1,7 +1,8 @@
 local plugin_root = vim.fs.dirname(vim.fs.dirname(vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p")))
 vim.opt.rtp:prepend(plugin_root)
 vim.opt.rtp:append(vim.env.PACKAGE_INFO_TEST_PARSER_RTP or vim.fn.stdpath("data") .. "/site")
-local helper = require("package_info.helper")
+local adapter = require("package_info.integrations.nvim").new()
+local helper = adapter.helper
 helper.runtime = vim.env.PACKAGE_INFO_TEST_RUNTIME or helper.runtime
 local source = plugin_root
 local url
@@ -26,6 +27,7 @@ local config = {
   enableStrictSsl = true,
   npmScopes = { private = { npmRegistryServer = url .. "/private", npmAuthToken = "FIXTURE_TOKEN" } },
 }
+---@diagnostic disable-next-line: duplicate-set-field
 vim.system = function(command, options, callback)
   if command[1] ~= manager then
     return real_system(command, options, callback)
@@ -61,7 +63,7 @@ vim.system = function(command, options, callback)
     end,
   }
 end
-local info = require("package_info")
+local info = require("package_info.controller").new(adapter)
 info.setup()
 local root = vim.fn.tempname()
 vim.fn.mkdir(root, "p")
@@ -113,7 +115,7 @@ local function settle(buf)
           return false
         end
       end
-      return state.network_ticket == nil
+      return state.network_ticket == nil and info.renderer.pending() == 0
     end, 10),
     "network test timed out"
   )
@@ -126,7 +128,7 @@ assert(
   end, 10),
   "inspection missing"
 )
-assert(#vim.api.nvim_buf_get_extmarks(buf, info.namespace, 0, -1, {}) > 0, "installed versions waited for network")
+assert(#vim.api.nvim_buf_get_extmarks(buf, adapter.namespace, 0, -1, {}) > 0, "installed versions waited for network")
 settle(buf)
 local state = info.buffers[buf]
 assert(state.backend == "parallel registry")
@@ -205,12 +207,12 @@ assert(
   end, 10),
   "network request missing"
 )
-local ticket = info.buffers[buf].network_ticket
+local ticket = assert(info.buffers[buf].network_ticket)
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "{" })
 vim.api.nvim_exec_autocmds("TextChanged", { buffer = buf })
 assert(ticket.cancelled and not helper.pending[ticket.id])
 vim.wait(500)
-assert(#vim.api.nvim_buf_get_extmarks(buf, info.namespace, 0, -1, {}) == 0, "cancelled results reappeared")
+assert(#vim.api.nvim_buf_get_extmarks(buf, adapter.namespace, 0, -1, {}) == 0, "cancelled results reappeared")
 vim.bo[buf].modified = false
 vim.cmd.edit({ args = { root .. "/package.json" }, bang = true })
 info.refresh(buf)
@@ -234,7 +236,28 @@ settle(buf)
 for _, dep in ipairs(info.buffers[buf].context.dependencies) do
   assert(not dep.cached, "forced refresh reused persisted registry metadata")
 end
-helper.stop()
+-- Custom options travel through actual bootstrap/helper IO and preserve manual checks.
+info.setup({
+  auto_refresh = false,
+  sections = { "dependencies" },
+  exclude = { packages = { "slow", "missing", "@private/*" } },
+  concurrency = { http = 1, http_per_project = 1 },
+  cache = { disk = false, ttl = 0, memory_limit = 0 },
+  display = { enabled = false },
+})
+assert(info.buffers[buf] == nil)
+vim.api.nvim_exec_autocmds("BufEnter", { buffer = buf })
+assert(info.buffers[buf] == nil, "manual mode checked a buffer automatically")
+info.refresh(buf)
+settle(buf)
+assert(#info.buffers[buf].context.dependencies == 1, "configured sections/package exclusions were ignored")
+assert(info.buffers[buf].context.dependencies[1].name == "good")
+assert(not info.buffers[buf].context.dependencies[1].cached, "disabled caches were reused")
+assert(#vim.api.nvim_buf_get_extmarks(buf, adapter.namespace, 0, -1, {}) == 0, "disabled display rendered annotations")
+info.refresh(buf)
+settle(buf)
+assert(not info.buffers[buf].context.dependencies[1].cached, "zero TTL retained HTTP metadata")
+info.teardown()
 vim.fn.jobstop(server)
 vim.system = real_system
 vim.fn.delete(root, "rf")

@@ -1,0 +1,13 @@
+{
+  "name": "package-info-tests",
+  "private": true,
+  "dependencies": {
+    "typescript": "5.9.3",
+    "@types/node": "22.9.3",
+    "@types/semver": "7.7.1",
+    "@types/picomatch": "4.0.2",
+    "semver": "7.7.3",
+    "picomatch": "4.0.3",
+    "yaml": "2.8.1"
+  }
+}

@@ -1,5 +1,26 @@
 local M = {}
 
+---@param context PackageInfoContext
+---@param target string
+---@return string
+function M.metadata_key(context, target)
+  local parts = {}
+  for _, value in ipairs({
+    context.root,
+    context.dir,
+    context.manager,
+    tostring(assert(context.major)),
+    context.registry_fingerprint,
+    target,
+  }) do
+    parts[#parts + 1] = #value .. ":" .. value
+  end
+  return table.concat(parts)
+end
+
+---@param context {manager: PackageInfoManager, major?: integer, expected_major?: integer}
+---@param name string
+---@return string[]
 function M.command(context, name)
   if context.manager == "yarn" then
     if context.major == 1 then
@@ -10,24 +31,36 @@ function M.command(context, name)
   return { context.manager, "view", name, "versions", "dist-tags", "--json" }
 end
 
+---@param context {manager: PackageInfoManager, major?: integer, expected_major?: integer}
+---@param names string[]
+---@return string[]?
 function M.batch_command(context, names)
   if context.manager ~= "yarn" or context.major == 1 then
     return nil
   end
   local command = { "yarn", "npm", "info" }
-  vim.list_extend(command, names)
-  vim.list_extend(command, { "--fields", "name,versions,dist-tags", "--json" })
+  for _, name in ipairs(names) do
+    command[#command + 1] = name
+  end
+  for _, argument in ipairs({ "--fields", "name,versions,dist-tags", "--json" }) do
+    command[#command + 1] = argument
+  end
   return command
 end
 
 -- A failed batch may still contain successful records. Match names rather than output order.
-function M.batch_results(stdout, names)
+---@param stdout? string
+---@param names string[]
+---@param decode fun(text: string): unknown
+---@param encode fun(value: table): string
+---@return table<string, string>
+function M.batch_results(stdout, names, decode, encode)
   local wanted, results = {}, {}
   for _, name in ipairs(names) do
     wanted[name] = true
   end
   for line in (stdout or ""):gmatch("[^\n]+") do
-    local ok, value = pcall(vim.json.decode, line)
+    local ok, value = pcall(decode, line)
     if
       ok
       and type(value) == "table"
@@ -35,12 +68,14 @@ function M.batch_results(stdout, names)
       and type(value.versions) == "table"
       and type(value["dist-tags"]) == "table"
     then
-      results[value.name] = vim.json.encode({ versions = value.versions, ["dist-tags"] = value["dist-tags"] })
+      results[value.name] = encode({ versions = value.versions, ["dist-tags"] = value["dist-tags"] })
     end
   end
   return results
 end
 
+---@param result PackageInfoProcessResult
+---@return PackageInfoErrorKind, string
 function M.error(result)
   local message = ((result.stderr or "") .. " " .. (result.stdout or "")):lower()
   if result.code == 124 or result.signal == 15 or result.signal == 9 then
@@ -62,6 +97,9 @@ function M.error(result)
   return "network", "Registry request failed; check network and manager configuration"
 end
 
+---@param context {manager: PackageInfoManager, major?: integer, expected_major?: integer}
+---@param stdout? string
+---@return integer?, string?
 function M.compatible(context, stdout)
   local major = tonumber((stdout or ""):match("(%d+)%.%d+%.%d+"))
   if not major then

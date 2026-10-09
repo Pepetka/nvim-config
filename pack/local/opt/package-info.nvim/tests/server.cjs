@@ -1,8 +1,13 @@
 const http = require("node:http");
 const server = http.createServer((request, response) => {
-  const url = new URL(request.url, "http://fixture");
-  const name = decodeURIComponent(url.pathname.replace(/^\/(?:public|private)\//, ""));
-  if (url.pathname.startsWith("/private/") && request.headers.authorization !== "Bearer FIXTURE_TOKEN") {
+  const url = new URL(request.url || "/", "http://fixture");
+  const name = decodeURIComponent(
+    url.pathname.replace(/^\/(?:public|private)\//, ""),
+  );
+  if (
+    url.pathname.startsWith("/private/") &&
+    request.headers.authorization !== "Bearer FIXTURE_TOKEN"
+  ) {
     response.writeHead(401);
     response.end(JSON.stringify({ error: "SYNTHETIC_SECRET" }));
     return;
@@ -17,7 +22,11 @@ const server = http.createServer((request, response) => {
     response.end(JSON.stringify({ error: "SYNTHETIC_SECRET" }));
     return;
   }
-  const metadata = { name, versions: { "1.0.0": {}, "1.2.0": {}, "2.0.0": {} }, "dist-tags": { latest: "2.0.0" } };
+  const metadata = {
+    name,
+    versions: { "1.0.0": {}, "1.2.0": {}, "2.0.0": {} },
+    "dist-tags": { latest: "2.0.0" },
+  };
   setTimeout(
     () => {
       response.setHeader("content-type", "application/json");
@@ -26,5 +35,16 @@ const server = http.createServer((request, response) => {
     name.includes("slow") ? 300 : 30,
   );
 });
-server.listen(0, "127.0.0.1", () => process.stdout.write("http://127.0.0.1:" + server.address().port + "\n"));
+server.listen(0, "127.0.0.1", () =>
+  process.stdout.write(
+    "http://127.0.0.1:" +
+      (() => {
+        const address = server.address();
+        if (!address || typeof address === "string")
+          throw new Error("Invalid fixture address");
+        return address.port;
+      })() +
+      "\n",
+  ),
+);
 process.on("SIGTERM", () => server.close(() => process.exit(0)));
