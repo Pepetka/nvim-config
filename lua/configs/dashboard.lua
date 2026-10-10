@@ -1,66 +1,38 @@
-local dashboard = require("dashboard")
-local dashboard_utils = require("utils.dashboard")
-local pad = require("utils.pad")
+local content = require("utils.dashboard")
+local season = content.season(content.calendar_date())
 
-local theme_highlights = require("utils.theme_highlights")
-local seasonal_color = dashboard_utils.get_seasonal_highlight()
-
-theme_highlights.register("dashboard", function(c)
-  return {
-    DashboardHeader = { fg = c.palette[seasonal_color or "blue"], bold = seasonal_color and true or nil },
-    DashboardDesc = { fg = c.muted },
-    DashboardIcon = { fg = c.muted },
-    DashboardKey = { fg = c.muted },
-    DashboardFooter = { fg = c.error },
-  }
-end)
-
--- Hide chrome before rendering; dashboard itself saves/restores the user's
--- options. Native statusline refreshes can reveal it again on ColorScheme.
-local function hide_dashboard_ui()
-  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    local buf = vim.api.nvim_win_get_buf(win)
-    if vim.bo[buf].filetype == "dashboard" and vim.api.nvim_win_get_config(win).relative == "" then
-      vim.o.laststatus = 0
-      vim.o.showtabline = 0
-      vim.o.winbar = ""
-      return
-    end
-  end
-end
-
-vim.api.nvim_create_autocmd("FileType", {
-  group = vim.api.nvim_create_augroup("DashboardUI", { clear = true }),
-  pattern = "dashboard",
-  callback = hide_dashboard_ui,
-})
-theme_highlights.on_refresh("dashboard", hide_dashboard_ui, 10)
-
-local header = dashboard_utils.get_header()
-local center = {
-  { action = "FzfLua files", desc = pad(" Find file", 34, "right"), icon = " ", key = "f" },
-  { action = "FzfLua oldfiles", desc = pad(" Recent files", 34, "right"), icon = " ", key = "r" },
-  { action = "FzfLua live_grep", desc = pad(" Find text", 34, "right"), icon = "󰺮 ", key = "g" },
-  { action = "NvimTreeToggle", desc = pad(" File tree", 34, "right"), icon = "󰙅 ", key = "e" },
-  { action = "q", desc = pad(" Quit", 34, "right"), icon = " ", key = "q" },
+---@type DashboardOptions
+local options = {
+  blocks = {
+    { id = "header", type = "text", lines = content.header(season), style = "Header" },
+    {
+      id = "menu",
+      type = "actions",
+      layout = { align = "left" },
+      label_width = 35,
+      spacing = 1,
+      items = {
+        { id = "files", label = " Find file", icon = "", key = "f", run = "FzfLua files" },
+        { id = "recent", label = " Recent files", icon = "", key = "r", run = "FzfLua oldfiles" },
+        { id = "grep", label = " Find text", icon = "󰺮", key = "g", run = "FzfLua live_grep" },
+        { id = "tree", label = " File tree", icon = "󰙅", key = "e", run = "NvimTreeToggle" },
+        { id = "quit", label = " Quit", icon = "", key = "q", run = "q" },
+      },
+    },
+    { id = "footer", type = "text", style = "Footer", lines = content.footer },
+  },
+  layout = { gap = 1, bottom_padding = 4 },
+  highlights = function()
+    local colors = require("utils.colors")
+    return {
+      Header = { fg = colors.palette[season and season.color or "blue"], bold = season ~= nil },
+      Text = { fg = colors.muted },
+      Icon = { fg = colors.muted },
+      Key = { fg = colors.muted },
+      Footer = { fg = colors.error },
+    }
+  end,
+  map_opts = require("utils.map_opts"),
 }
--- Dashboard serializes this function when closing its buffer. Keep it free of
--- captured locals so the cached version can run when :Dashboard reopens it.
-local function footer()
-  return require("utils.dashboard").footer()
-end
 
-dashboard.setup({
-  theme = "doom",
-  hide = {
-    statusline = true,
-    tabline = true,
-    winbar = true,
-  },
-  config = {
-    header = header,
-    center = center,
-    footer = footer,
-    vertical_center = true,
-  },
-})
+require("dashboard").setup(options)

@@ -9,17 +9,9 @@
       "src": "https://github.com/saghen/blink.cmp",
       "version": "1.0.0 - 2.0.0"
     },
-    "bufferline.nvim": {
-      "rev": "655133c3b4c3e5e05ec549b9f8cc2894ac6f51b3",
-      "src": "https://github.com/akinsho/bufferline.nvim"
-    },
     "conform.nvim": {
       "rev": "016802de402556da54c36bd7359b441266b01cdd",
       "src": "https://github.com/stevearc/conform.nvim"
-    },
-    "dashboard-nvim": {
-      "rev": "f787e3462c2ee2b6117b17c1aa4ddf66cb6f57fe",
-      "src": "https://github.com/nvimdev/dashboard-nvim"
     },
     "diffview-plus.nvim": {
       "rev": "875d16dd8c8aa86f1a5c3b5cef49e1133980ae94",

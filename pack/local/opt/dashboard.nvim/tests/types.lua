@@ -1,0 +1,1 @@
+---@alias DashboardTestAction fun(): nil

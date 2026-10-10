@@ -10,7 +10,7 @@ Personal Neovim configuration (Lua, Neovim 0.12+, `vim.pack`). Targets the live 
 - **Fuzzy finder:** `fzf-lua`
 - **File tree:** `nvim-tree.lua`
 - **Status/tab line:** `lualine.nvim` / local `tab-buffers.nvim` tabline
-- **Dashboard:** `dashboard-nvim`
+- **Dashboard:** local `dashboard.nvim` (typed blocks, pure core, native rendering and theme lifecycle)
 - **Colorscheme:** `tokyonight.nvim` (transparent, follows the dotfiles theme engine via `${XDG_CONFIG_HOME:-~/.config}/theme/mode`; supports auto/dark/light policy upstream; terminal buffers inherit host ANSI colors)
 - **Formatter:** `conform.nvim` (prefers Oxc when Oxc configs exist, else `eslint_d`/`prettierd`)
 - **Linter:** `nvim-lint` (prefers `oxlint` when Oxc lint config exists, else `eslint_d`)
@@ -51,6 +51,8 @@ Plugin groups in `lua/plugins/init.lua` load in order: `shared` → `core` → `
 - `lua/configs/stable_folds.lua` — folding setup and personal fold options
 - `pack/local/opt/cheatsheet.nvim/` — interactive keymap browser and tests
 - `lua/configs/cheatsheet.lua` — personal keymap groups and opening mapping
+- `pack/local/opt/dashboard.nvim/` — startup screen, text/action/custom blocks and tests
+- `lua/configs/dashboard.lua` / `lua/utils/dashboard.lua` — personal dashboard content, seasonal rules and palette
 - `nvim-pack-lock.json` — pinned plugin revisions
 - `stylua.toml` — formatter config (120 cols, 2 spaces, Unix endings, AutoPreferDouble)
 
@@ -60,6 +62,7 @@ No build step. Package-info has focused Node and headless Neovim tests
 (see `pack/local/opt/package-info.nvim/README.md`). When editing the config:
 
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme.lua` — theme/watcher/ANSI regression tests
+- `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/dashboard.lua` — dashboard layout snapshots and seasonal content
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u ./init.lua -i NONE -n -c 'lua dofile("tests/theme_ui.lua")'` — full theme integration
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme_startup.lua` — first dashboard frame, theme changes, resize and reopen with a real RPC UI
 - `stylua --check .` — verify formatting
@@ -187,6 +190,8 @@ For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
 - Always use `require("utils.map_opts")` for new keymaps and include a description.
 - Reuse helpers in `lua/utils/` instead of duplicating logic.
 - Host highlight definitions use `utils.theme_highlights.register(name, function(colors) return groups end)`.
+  Dashboard passes semantic role definitions through its own `highlights` callback, reading `utils.colors`;
+  it owns highlight updates and panel reconciliation without host theme registry hooks.
   Registration applies immediately; TokyoNight merges the definitions before native `ColorScheme` consumers run.
   Use `utils.theme_highlights.on_refresh(name, callback, priority)` for derived UI refreshes after native handlers;
   lower priorities run first. Definitions must not perform plugin setup, UI changes or redraws.
@@ -203,3 +208,7 @@ For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
   The optional `tab_buffers.tabline` uses the same public API; left click opens, middle click safely closes,
   and tab labels show numbers with a Diffview indicator. Run `tests/tabline.lua` as well as the integration suites.
   Tear down the tabline before the adapter. Membership is session-local.
+- For dashboard, run its pure core/controller, native adapter, Neovim, embedded startup and LuaLS suites,
+  plus host dashboard/theme regressions. Preserve `:Dashboard` and filetype `dashboard` for integrations.
+  Keep calendar rules, actions and statistics in the host; new generic blocks belong in the local plugin.
+  Layout uses screen cells and highlight spans use byte offsets. Theme events must not rebuild content.

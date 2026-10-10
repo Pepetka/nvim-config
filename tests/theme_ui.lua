@@ -114,7 +114,7 @@ local ok, err = xpcall(function()
     expect_color("Normal", "fg", colors.fg)
     expect_color("NvimTreeFolderName", "fg", colors.focus)
     expect_color("NvimTreeGitDirtyIcon", "fg", colors.warning)
-    expect_color("DashboardDesc", "fg", colors.muted)
+    expect_color("DashboardText", "fg", colors.muted)
     expect_color("DapBreakpoint", "fg", colors.error)
     expect_color("SnacksIndentScope", "fg", colors.focus)
     expect_color("MiniCursorword", "bg", colors.gutter)
@@ -160,7 +160,29 @@ local ok, err = xpcall(function()
     vim.deep_equal(content, vim.api.nvim_buf_get_lines(dashboard_buffer, 0, -1, false)),
     "Theme changed dashboard layout"
   )
-  expect_color("DashboardDesc", "fg", colors.muted)
+  expect_color("DashboardText", "fg", colors.muted)
+  -- Keyboard dispatch is covered by the independent native suite. Invoke the
+  -- mapped callback here without feeding keys into the suspended fzf terminal.
+  local file_action = vim.fn.maparg("f", "n", false, true)
+  assert(file_action.desc == "Dashboard: files" and type(file_action.callback) == "function")
+  file_action.callback()
+  vim.wait(400)
+  local dashboard_picker = require("fzf-lua.win").__SELF()
+  assert(dashboard_picker and dashboard_picker.fzf_bufnr, "Dashboard action did not open the file picker")
+  assert(
+    vim.api.nvim_get_current_buf() == dashboard_picker.fzf_bufnr,
+    "Dashboard action stole picker focus: "
+      .. vim.inspect({
+        buf = vim.api.nvim_get_current_buf(),
+        win = vim.api.nvim_get_current_win(),
+        ft = vim.bo.filetype,
+        mode = vim.api.nvim_get_mode().mode,
+        picker_buf = dashboard_picker.fzf_bufnr,
+        picker_win = dashboard_picker.fzf_winid,
+      })
+  )
+  fzf.hide()
+  assert(vim.api.nvim_get_current_buf() == dashboard_buffer, "Picker did not return to dashboard")
   vim.cmd.enew()
   vim.wait(50)
   assert(vim.o.laststatus == 3, "Dashboard did not restore the statusline")

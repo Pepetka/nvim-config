@@ -23,12 +23,25 @@ local BASE = {
 ---@field icon string
 ---@field color string tokyonight color name for DashboardHeader
 
----Return seasonal info for the current date, if any.
+---@class DashboardCalendarDate
+---@field month integer
+---@field day integer
+---@field yday integer
+
+---Project the standard library's date union onto the dashboard calendar contract.
+---@param timestamp? integer
+---@return DashboardCalendarDate
+M.calendar_date = function(timestamp)
+  local date = os.date("*t", timestamp)
+  assert(type(date) == "table", "calendar date must be a table")
+  return { month = date.month, day = date.day, yday = date.yday }
+end
+
+---Return seasonal info for an explicit calendar date.
+---@param date DashboardCalendarDate
 ---@return SeasonalInfo | nil
-local get_seasonal_info = function()
-  local month = tonumber(os.date("%m"))
-  local day = tonumber(os.date("%d"))
-  local yday = tonumber(os.date("%j"))
+M.season = function(date)
+  local month, day, yday = date.month, date.day, date.yday
 
   if month == 3 and day >= 7 and day <= 9 then
     return { text = "Happy Women's Day", icon = "♀", color = "magenta" }
@@ -66,44 +79,40 @@ local build_seasonal_frame = function(info)
   return "╭" .. content .. "╮"
 end
 
----Return the palette key for the current season, if any.
----@return string | nil
-M.get_seasonal_highlight = function()
-  local info = get_seasonal_info()
-  return info and info.color or nil
-end
-
-local header_cache ---@type string[]?
-
 ---Return the dashboard header.
+---@param info? SeasonalInfo
 ---@return string[]
-M.get_header = function()
-  if header_cache then
-    return header_cache
-  end
-
-  local info = get_seasonal_info()
+M.header = function(info)
   local header = {}
   for _, line in ipairs(BASE) do
     table.insert(header, line)
   end
+  -- Inter-block spacing belongs to the dashboard layout.
+  table.remove(header)
 
   if info then
     header[7] = build_seasonal_frame(info)
   end
 
-  header_cache = header
   return header
 end
 
----Return the dashboard footer lines with plugin count and config load time.
+---Format dependency statistics without querying Neovim.
+---@param count integer
+---@param startup_ms? number
 ---@return string[]
-M.footer = function()
-  local count = #vim.pack.get(nil, { info = false })
-  local ms = _G.nvim_startup_ms and string.format("%.0f", _G.nvim_startup_ms) or "?"
+M.format_footer = function(count, startup_ms)
+  local ms = startup_ms and string.format("%.0f", startup_ms) or "?"
   local text = string.format("⚡ %d plugins · config %s ms", count, ms)
   local separator = pad("", M.row_length, "center", "─")
   return { separator, text, separator }
+end
+
+---Read cheap package statistics; functions keep their closures across reopening.
+---@return string[]
+M.footer = function()
+  local startup_ms = rawget(_G, "nvim_startup_ms")
+  return M.format_footer(#vim.pack.get(nil, { info = false }), type(startup_ms) == "number" and startup_ms or nil)
 end
 
 return M

@@ -286,7 +286,7 @@ a stylesheet with `@import "tailwindcss"`; no Tailwind or PostCSS config file is
 - **Git integration** with `gitsigns.nvim` and `diffview-plus.nvim`
 - **Debugging** for JS/TS using `nvim-dap` and `nvim-dap-view`
 - **Transparent TokyoNight** theme following the shared engine's effective mode, preserving foregrounds and highlight styles
-- **Minimal, fast UI** with `lualine`, the local tab-buffers panel, `dashboard-nvim`, and `snacks.nvim`
+- **Minimal, fast UI** with `lualine`, the local tab-buffers panel, local `dashboard.nvim`, and `snacks.nvim`
 - **Custom fold expression** based on Treesitter
 - **Scope-aware buffers** with `scope.nvim` so buffer lists stay per tab
 - **Image previews** under the cursor via `snacks.nvim`
@@ -326,6 +326,9 @@ including template extraction, LSP edit mapping and supplemental injection queri
 [`stable-folds.nvim`](pack/local/opt/stable-folds.nvim/README.md) computes synchronous Tree-sitter folds
 and preserves closed fold state across edits.
 [`cheatsheet.nvim`](pack/local/opt/cheatsheet.nvim/README.md) implements the interactive keymap browser.
+[`dashboard.nvim`](pack/local/opt/dashboard.nvim/README.md) implements the startup screen with typed text,
+action and custom blocks. It owns layout, theme updates and restoration of editor panels;
+personal seasonal content, actions and colors remain in `lua/configs/dashboard.lua`.
 Personal setup remains in `lua/configs/css_in_js.lua`, `stable_folds.lua` and `cheatsheet.lua`.
 Each plugin has headless Neovim tests described in its README.
 
@@ -433,16 +436,21 @@ the installed `fzf` and standard `awk`; the provider's callback strings bypass i
 
 TokyoNight publishes one active palette snapshot through `utils.colors`. Personal plugin definitions register
 with `utils.theme_highlights` and are merged before native plugin color handlers run. Derived UI updates run
-once afterwards: color markers in listed/unlisted buffers are restored, dashboard panels remain hidden, and lualine
-uses dynamic colors without rebuilding its host configuration or Git cache. Local plugins retain their own color handlers.
+once afterwards: color markers in listed/unlisted buffers are restored, and lualine uses dynamic colors without
+rebuilding its host configuration or Git cache. Local plugins retain their own color handlers; dashboard receives
+semantic styles through its palette callback and independently keeps its editor panels hidden.
 
 The dashboard renders its footer without collecting Git branches/tags for every plugin, so its first visible
 frame already has centered content and custom highlights. The footer's time measures configuration loading.
-Its cached footer callback also supports reopening `:Dashboard` after leaving the initial screen.
+Its footer callback keeps its closure in memory and supports reopening `:Dashboard` after leaving the initial screen.
+Layout snapshots and seasonal content are checked with `tests/dashboard.lua`; custom blocks use the same
+document contract as built-in text and menus. Palette updates never invoke content providers.
 
 Run the focused theme regression suite with installed plugins:
 
 ```sh
+NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/dashboard.lua
+NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/dashboard_types.lua
 NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme.lua
 NVIM_LOG_FILE=/dev/null nvim --headless -u ./init.lua -i NONE -n -c 'lua dofile("tests/theme_ui.lua")'
 NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme_startup.lua
