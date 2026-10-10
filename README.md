@@ -185,7 +185,7 @@ Python tools and Node-based formatters can usually be installed per-project or v
 
 This Neovim config is designed to work alongside a matching terminal, multiplexer, and shell setup.
 If you want the complete experience — including
-TokyoNight theme switching across terminal, tmux, zsh, and Neovim — use the
+Automatic macOS TokyoNight theming across terminal, tmux, zsh, and Neovim — use the
 companion [dotfiles][dotfiles-repo] repository.
 
 [dotfiles-repo]: https://github.com/Pepetka/dotfiles
@@ -195,7 +195,7 @@ It provides:
 - **Zsh** configuration with Oh My Zsh, Powerlevel10k, and custom aliases
 - **Tmux** config with TokyoNight theme, popups, and a powerline-style status bar
 - **Terminal emulator** configs for Ghostty, Alacritty, and WezTerm
-- **Unified `theme` command** that switches dark/light mode across tmux, terminal, and Neovim via `~/.config/theme/mode`
+- **Shared theme engine** installed with `theme install`; resolves persistent auto/dark/light policy and publishes dark/light mode under `${XDG_CONFIG_HOME:-~/.config}/theme/mode`
 
 Install it first (or alongside this config) for the best results.
 
@@ -285,7 +285,7 @@ a stylesheet with `@import "tailwindcss"`; no Tailwind or PostCSS config file is
 - **Formatting and linting** via `conform.nvim` and `nvim-lint`, with automatic Oxc detection
 - **Git integration** with `gitsigns.nvim` and `diffview-plus.nvim`
 - **Debugging** for JS/TS using `nvim-dap` and `nvim-dap-view`
-- **Transparent TokyoNight** theme with external light/dark mode switching
+- **Transparent TokyoNight** theme following the shared engine's effective mode, preserving foregrounds and highlight styles
 - **Minimal, fast UI** with `lualine`, the local tab-buffers panel, `dashboard-nvim`, and `snacks.nvim`
 - **Custom fold expression** based on Treesitter
 - **Scope-aware buffers** with `scope.nvim` so buffer lists stay per tab
@@ -300,7 +300,7 @@ a stylesheet with `@import "tailwindcss"`; no Tailwind or PostCSS config file is
 - **TODO/FIXME highlighting** with `todo-comments.nvim`
 - **Polished message UI** with `noice.nvim`
 - **File tree on the right** with `nvim-tree` (`netrw` is disabled)
-- **Live theme switching** via `~/.config/theme/mode`
+- **Live theme switching** via the shared engine, with directory watching and a one-second fallback
 - **Better Escape** — `jk`, `kj`, `jj` act as Escape in insert/visual modes
 
 ## Local plugins
@@ -388,7 +388,7 @@ For the full list, see `lua/mappings.lua` and `lua/configs/*.lua`.
 - [ ] Open `:Mason` and install the linters and formatters you need (`prettierd`, `eslint_d`, `stylua`, `shfmt`, etc.).
 - [ ] If you plan to debug JS/TS, install `js-debug-adapter` via `:Mason`.
 - [ ] Verify that the lsp and treesitter parsers were installed automatically (run `:LspInfo` and `:checkhealth nvim-treesitter`).
-- [ ] Optionally create `~/.config/theme/mode` containing `light` or `dark` to switch the theme from outside Neovim.
+- [ ] On macOS run `theme install` from the matching dotfiles; use `theme auto`, `theme dark` or `theme light`. Authorize the Ghostty helper once with `theme authorize` for live terminal reload.
 - [ ] Run `:checkhealth` and fix any missing optional dependencies.
 - [ ] If you use AI completion, authenticate Codeium so `windsurf.nvim` can read `~/.codeium/config.json`.
 - [ ] Press `<leader>ch` to open the cheatsheet and explore keymaps by mode.
@@ -416,3 +416,44 @@ stylua .
 ## License
 
 This repository is distributed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## System theme verification
+
+The dotfiles theme engine resolves `auto/dark/light` policy and publishes the effective mode as `dark` or `light` under
+`${XDG_CONFIG_HOME:-~/.config}/theme/mode`. Missing/invalid state preserves the current background; startup
+falls back to native terminal detection. Neovim reloads TokyoNight once per actual background transition.
+Its terminal buffers inherit the host ANSI palette (`terminal_colors = false`), and fzf uses base ANSI colors
+so an already-open picker follows the terminal without losing its query or selection. File previews use
+Neovim highlights; native bat/diff previews use ANSI colors. Arbitrary old RGB terminal output remains unchanged.
+Files and Git files use muted ANSI directories, the default filename foreground and icons mapped to the six
+base terminal hues. Their colors follow the terminal palette even while the picker is open.
+LSP symbol labels inherit the terminal foreground. Diagnostics pass through `scripts/fzf-plain`, which removes
+serialized color escapes while preserving messages, severity signs, sources and error codes. The wrapper uses
+the installed `fzf` and standard `awk`; the provider's callback strings bypass its usual `fn_transform` hook.
+
+TokyoNight publishes one active palette snapshot through `utils.colors`. Personal plugin definitions register
+with `utils.theme_highlights` and are merged before native plugin color handlers run. Derived UI updates run
+once afterwards: color markers in listed/unlisted buffers are restored, dashboard panels remain hidden, and lualine
+uses dynamic colors without rebuilding its host configuration or Git cache. Local plugins retain their own color handlers.
+
+The dashboard renders its footer without collecting Git branches/tags for every plugin, so its first visible
+frame already has centered content and custom highlights. The footer's time measures configuration loading.
+Its cached footer callback also supports reopening `:Dashboard` after leaving the initial screen.
+
+Run the focused theme regression suite with installed plugins:
+
+```sh
+NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme.lua
+NVIM_LOG_FILE=/dev/null nvim --headless -u ./init.lua -i NONE -n -c 'lua dofile("tests/theme_ui.lua")'
+NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme_startup.lua
+```
+
+The startup suite attaches a real RPC UI in both modes and checks the first frame, automatic theme transitions,
+resize and reopening. It publishes temporary mode files; it does not change macOS Appearance. The full config
+tests need permission to create local sockets for fzf. Restart existing Neovim sessions once after updating
+the theme modules so cached Lua modules are replaced.
+
+For a visual check, open fzf and ToggleTerm alongside the tree/statusline in both Ghostty and Alacritty,
+directly and through tmux, then switch macOS Appearance without interacting with those windows. Repeat
+after sleep and with multiple Neovim instances. Also check `theme dark`, `theme light` and return to `theme auto`.
+`theme status` reports the selected policy, effective mode and application adapter state.

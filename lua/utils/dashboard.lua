@@ -66,7 +66,7 @@ local build_seasonal_frame = function(info)
   return "╭" .. content .. "╮"
 end
 
----Return the hex color for the current season, if any.
+---Return the palette key for the current season, if any.
 ---@return string | nil
 M.get_seasonal_highlight = function()
   local info = get_seasonal_info()
@@ -96,12 +96,12 @@ M.get_header = function()
   return header
 end
 
----Return the dashboard footer lines with plugin count and startup time.
+---Return the dashboard footer lines with plugin count and config load time.
 ---@return string[]
 M.footer = function()
-  local count = #vim.pack.get()
+  local count = #vim.pack.get(nil, { info = false })
   local ms = _G.nvim_startup_ms and string.format("%.0f", _G.nvim_startup_ms) or "?"
-  local text = string.format("⚡ Loaded %d plugins in %s ms", count, ms)
+  local text = string.format("⚡ %d plugins · config %s ms", count, ms)
   local separator = pad("", M.row_length, "center", "─")
   return { separator, text, separator }
 end

@@ -3,9 +3,49 @@ local actions = require("fzf-lua.actions")
 local tab_buffers = require("tab_buffers.integrations.fzf")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
+-- An absolute module path also works in native file-list workers with a custom
+-- XDG root. The worker needs only fzf-lua, never the host palette or colorscheme.
+local file_colors = assert(vim.api.nvim_get_runtime_file("lua/utils/fzf_file_colors.lua", false)[1])
+local file_transform = string.format("return dofile(%q).file", file_colors)
+
+-- Use ANSI for every native Git preview, including commits/blame, not just status.
+local ansi_diff_pager = vim.fn.executable("delta") == 1
+    and table.concat({
+      "delta --no-gitconfig --width=$FZF_PREVIEW_COLUMNS --syntax-theme=ansi --true-color=never",
+      "--minus-style='red normal' --minus-emph-style='red bold' --minus-non-emph-style='red normal'",
+      "--plus-style='green normal' --plus-emph-style='green bold' --plus-non-emph-style='green normal'",
+      "--zero-style='syntax normal' --file-style='blue bold' --file-decoration-style='blue box'",
+      "--hunk-header-style='blue bold' --hunk-header-decoration-style='blue box'",
+    }, " ")
+  or false
 
 fzf.setup({
-  { "fzf-native", "hide" },
+  { "default", "hide" },
+  defaults = { color_icons = false, preview_pager = ansi_diff_pager },
+  -- These groups are serialized into terminal output and otherwise freeze RGB
+  -- colors until the picker is recreated. Native preview/window highlights keep
+  -- using the colorscheme; list content inherits the terminal's default color.
+  hls = {
+    live_prompt = "",
+    live_sym = "",
+    header_bind = "",
+    header_text = "",
+    dir_part = "",
+    file_part = "",
+    path_linenr = "",
+    path_colnr = "",
+    buf_id = "",
+    buf_name = "",
+    buf_linenr = "",
+    buf_nr = "",
+    buf_flag_cur = "",
+    buf_flag_alt = "",
+    tab_title = "",
+    tab_marker = "",
+    cmd_ex = "",
+    cmd_buf = "",
+    cmd_global = "",
+  },
   ui_select = function(opts, items)
     local min_h, max_h = 0.15, 0.70
     local ui_overhead_rows = 8
@@ -45,6 +85,7 @@ fzf.setup({
     },
   },
   fzf_opts = {
+    ["--color"] = "16,fg:-1,bg:-1,fg+:-1,bg+:-1,hl:4,hl+:4,prompt:4,pointer:5,marker:2",
     ["--ansi"] = "",
     ["--info"] = "inline-right",
     ["--height"] = "100%",
@@ -53,7 +94,7 @@ fzf.setup({
     ["--cycle"] = "",
     ["--history"] = vim.fn.stdpath("data") .. "/fzf-lua-history",
   },
-  fzf_colors = true,
+  fzf_colors = false,
   actions = {
     files = {
       ["default"] = actions.file_edit_or_qf,
@@ -74,13 +115,13 @@ fzf.setup({
     bat = {
       cmd = "bat",
       args = "--style=numbers,changes --color=always",
-      theme = "Coldark-Dark",
+      theme = "ansi",
     },
     git_diff = {
       cmd_deleted = "git diff --color HEAD --",
       cmd_modified = "git diff --color HEAD",
       cmd_untracked = "git diff --color --no-index /dev/null",
-      pager = "delta --width=$FZF_PREVIEW_COLUMNS",
+      pager = ansi_diff_pager,
     },
     builtin = {
       syntax = true,
@@ -95,6 +136,7 @@ fzf.setup({
     multiprocess = true,
     file_icons = true,
     git_icons = true,
+    fn_transform = file_transform,
     fd_opts = "--color=never --type f --hidden --follow --exclude .git --exclude node_modules --exclude .venv --exclude target --exclude dist --exclude build",
     rg_opts = "--color=never --files --hidden --follow -g '!.git' -g '!node_modules' -g '!.venv' -g '!target' -g '!dist' -g '!build'",
   },
@@ -118,12 +160,20 @@ fzf.setup({
     prompt = "History❯ ",
     cwd_only = false,
   },
+  diagnostics = {
+    color_headings = false,
+    -- The provider always colors diagnostic codes and bypasses fn_transform.
+    -- Filter the actual input stream, retaining source, code and severity signs.
+    fzf_bin = assert(vim.api.nvim_get_runtime_file("scripts/fzf-plain", false)[1]),
+    pipe_cmd = true,
+  },
   git = {
     files = {
       prompt = "Git Files❯ ",
       multiprocess = true,
       file_icons = true,
       git_icons = true,
+      fn_transform = file_transform,
     },
     status = {
       prompt = "Git Status❯ ",
@@ -164,6 +214,7 @@ fzf.setup({
     },
   },
   lsp = {
+    symbols = { symbol_hl = false },
     prompt_postfix = "❯ ",
     cwd_only = false,
     async_or_timeout = 5000,

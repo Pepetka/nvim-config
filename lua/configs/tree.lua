@@ -3,6 +3,7 @@ local nvimtree_api = require("nvim-tree.api")
 local nvimtree_map = require("nvim-tree.api").map
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
+local theme_highlights = require("utils.theme_highlights")
 
 local function opts(desc, bufnr)
   return map_opts("Tree: " .. desc, { buffer = bufnr })
@@ -277,6 +278,28 @@ nvimtree.setup({
   },
   on_attach = on_attach,
 })
+
+theme_highlights.register("tree", function(c)
+  return {
+    NvimTreeNormal = { bg = "NONE", fg = c.fg },
+    NvimTreeNormalNC = { bg = "NONE", fg = c.fg },
+    NvimTreeEndOfBuffer = { bg = "NONE", fg = c.bg },
+    NvimTreeWinSeparator = { bg = "NONE", fg = c.gutter },
+    NvimTreeCursorLine = { bg = c.surface },
+    NvimTreeCursorColumn = { bg = c.surface },
+    NvimTreeOpenedFile = { fg = c.accent, bold = true },
+    NvimTreeOpenedFolderName = { fg = c.focus, bold = true },
+    NvimTreeFolderName = { fg = c.focus },
+    NvimTreeFolderIcon = { fg = c.muted },
+    NvimTreeRootFolder = { fg = c.muted, bold = true },
+    NvimTreeGitFileDirtyHL = { fg = c.warning },
+    NvimTreeGitFileNewHL = { fg = c.success },
+    NvimTreeGitFileDeletedHL = { fg = c.error },
+    NvimTreeGitDirtyIcon = { fg = c.warning },
+    NvimTreeGitNewIcon = { fg = c.success },
+    NvimTreeGitDeletedIcon = { fg = c.error },
+  }
+end)
 
 map("n", "<leader>e", function()
   nvimtree_api.tree.open({ focus = true })

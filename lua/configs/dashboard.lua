@@ -2,22 +2,39 @@ local dashboard = require("dashboard")
 local dashboard_utils = require("utils.dashboard")
 local pad = require("utils.pad")
 
-local seasonal_color_name = dashboard_utils.get_seasonal_highlight()
+local theme_highlights = require("utils.theme_highlights")
+local seasonal_color = dashboard_utils.get_seasonal_highlight()
 
-local function setup_highlights()
-  local colors = require("utils.colors")
+theme_highlights.register("dashboard", function(c)
+  return {
+    DashboardHeader = { fg = c.palette[seasonal_color or "blue"], bold = seasonal_color and true or nil },
+    DashboardDesc = { fg = c.muted },
+    DashboardIcon = { fg = c.muted },
+    DashboardKey = { fg = c.muted },
+    DashboardFooter = { fg = c.error },
+  }
+end)
 
-  if seasonal_color_name then
-    vim.api.nvim_set_hl(0, "DashboardHeader", { fg = colors.palette[seasonal_color_name], bold = true })
+-- Hide chrome before rendering; dashboard itself saves/restores the user's
+-- options. Native statusline refreshes can reveal it again on ColorScheme.
+local function hide_dashboard_ui()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    if vim.bo[buf].filetype == "dashboard" and vim.api.nvim_win_get_config(win).relative == "" then
+      vim.o.laststatus = 0
+      vim.o.showtabline = 0
+      vim.o.winbar = ""
+      return
+    end
   end
-
-  vim.api.nvim_set_hl(0, "DashboardDesc", { fg = colors.muted })
-  vim.api.nvim_set_hl(0, "DashboardIcon", { fg = colors.muted })
-  vim.api.nvim_set_hl(0, "DashboardKey", { fg = colors.muted })
-  vim.api.nvim_set_hl(0, "DashboardFooter", { fg = colors.error })
 end
 
-setup_highlights()
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("DashboardUI", { clear = true }),
+  pattern = "dashboard",
+  callback = hide_dashboard_ui,
+})
+theme_highlights.on_refresh("dashboard", hide_dashboard_ui, 10)
 
 local header = dashboard_utils.get_header()
 local center = {
@@ -27,7 +44,11 @@ local center = {
   { action = "NvimTreeToggle", desc = pad(" File tree", 34, "right"), icon = "󰙅 ", key = "e" },
   { action = "q", desc = pad(" Quit", 34, "right"), icon = " ", key = "q" },
 }
-local footer = dashboard_utils.footer
+-- Dashboard serializes this function when closing its buffer. Keep it free of
+-- captured locals so the cached version can run when :Dashboard reopens it.
+local function footer()
+  return require("utils.dashboard").footer()
+end
 
 dashboard.setup({
   theme = "doom",
@@ -43,13 +64,3 @@ dashboard.setup({
     vertical_center = true,
   },
 })
-setup_highlights()
-
-vim.api.nvim_create_autocmd("ColorScheme", {
-  group = vim.api.nvim_create_augroup("DashboardHighlights", { clear = true }),
-  callback = setup_highlights,
-})
-
-return {
-  setup_highlights = setup_highlights,
-}

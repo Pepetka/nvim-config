@@ -11,7 +11,7 @@ Personal Neovim configuration (Lua, Neovim 0.12+, `vim.pack`). Targets the live 
 - **File tree:** `nvim-tree.lua`
 - **Status/tab line:** `lualine.nvim` / local `tab-buffers.nvim` tabline
 - **Dashboard:** `dashboard-nvim`
-- **Colorscheme:** `tokyonight.nvim` (transparent, light/dark switched via `~/.config/theme/mode`)
+- **Colorscheme:** `tokyonight.nvim` (transparent, follows the dotfiles theme engine via `${XDG_CONFIG_HOME:-~/.config}/theme/mode`; supports auto/dark/light policy upstream; terminal buffers inherit host ANSI colors)
 - **Formatter:** `conform.nvim` (prefers Oxc when Oxc configs exist, else `eslint_d`/`prettierd`)
 - **Linter:** `nvim-lint` (prefers `oxlint` when Oxc lint config exists, else `eslint_d`)
 - **AI completion:** `windsurf.nvim` (active); `minuet-ai.nvim` and `neocodeium` configs are present but disabled
@@ -35,6 +35,10 @@ Plugin groups in `lua/plugins/init.lua` load in order: `shared` → `core` → `
 - `lua/configs/*.lua` — per-plugin setup
 - `lsp/*.lua` — server configs loaded by `vim.lsp.config` in `lua/configs/lsp.lua`
 - `lua/utils/oxc_config.lua` — Oxc formatter/linter config detection
+- `lua/configs/theme.lua` — TokyoNight setup and system mode synchronization
+- `lua/utils/colors.lua` — explicit active palette snapshot and semantic color aliases
+- `lua/utils/theme_highlights.lua` — personal highlight definitions and ordered UI refreshes
+- `lua/utils/editor_highlights.lua` — editor transparency and shared popup highlights
 - `pack/local/opt/` — self-contained local plugins, loaded with native `packadd`
 - `pack/local/opt/package-info.nvim/` — package.json dependency information, Node helper and tests
 - `lua/configs/package_info.lua` — package-info setup
@@ -55,6 +59,9 @@ Plugin groups in `lua/plugins/init.lua` load in order: `shared` → `core` → `
 No build step. Package-info has focused Node and headless Neovim tests
 (see `pack/local/opt/package-info.nvim/README.md`). When editing the config:
 
+- `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme.lua` — theme/watcher/ANSI regression tests
+- `NVIM_LOG_FILE=/dev/null nvim --headless -u ./init.lua -i NONE -n -c 'lua dofile("tests/theme_ui.lua")'` — full theme integration
+- `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme_startup.lua` — first dashboard frame, theme changes, resize and reopen with a real RPC UI
 - `stylua --check .` — verify formatting
 - `stylua .` — apply formatting
 - `:source %` (`<leader>rs`) — reload current file
@@ -179,8 +186,12 @@ For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
 - When adding JS/TS formatter or linter support, update `lua/utils/oxc_config.lua` if Oxc detection is needed.
 - Always use `require("utils.map_opts")` for new keymaps and include a description.
 - Reuse helpers in `lua/utils/` instead of duplicating logic.
-- Host plugin configs that cache colors from `utils.colors` should register a `ColorScheme` callback via
-  `utils.theme_highlights`. Self-contained local plugins should handle `ColorScheme` with their own autocommand.
+- Host highlight definitions use `utils.theme_highlights.register(name, function(colors) return groups end)`.
+  Registration applies immediately; TokyoNight merges the definitions before native `ColorScheme` consumers run.
+  Use `utils.theme_highlights.on_refresh(name, callback, priority)` for derived UI refreshes after native handlers;
+  lower priorities run first. Definitions must not perform plugin setup, UI changes or redraws.
+  `utils.colors` reads the palette snapshot published by TokyoNight; do not rebuild palettes in consumers.
+  Self-contained local plugins should handle `ColorScheme` with their own autocommand.
 - Run `stylua .` before committing Lua changes.
 - Test changes inside Neovim. For package-info, also run the Node built-in tests described in its plugin README.
 - For CSS-in-JS, stable-folds and cheatsheet, run the headless tests described in each local plugin README.

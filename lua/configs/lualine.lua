@@ -1,4 +1,13 @@
 local lualine = require("lualine")
+local theme_highlights = require("utils.theme_highlights")
+
+theme_highlights.register("lualine", function(c)
+  return {
+    ConfigStatusDiffAdd = { fg = c.palette.green, bg = c.surface },
+    ConfigStatusDiffChange = { fg = c.palette.orange, bg = c.surface },
+    ConfigStatusDiffDelete = { fg = c.palette.red, bg = c.surface },
+  }
+end)
 
 local M = {}
 
@@ -25,39 +34,45 @@ function M.setup()
   })
 
   local mode_colors = {
-    n = { bg = colors.palette.purple, fg = colors.surface },
-    i = { bg = colors.palette.green, fg = colors.surface },
-    v = { bg = colors.palette.yellow, fg = colors.surface },
-    ["\22"] = { bg = colors.palette.blue, fg = colors.surface },
-    V = { bg = colors.palette.yellow, fg = colors.surface },
-    c = { bg = colors.palette.magenta, fg = colors.surface },
-    no = { bg = colors.palette.orange, fg = colors.surface },
-    s = { bg = colors.palette.orange, fg = colors.surface },
-    S = { bg = colors.palette.orange, fg = colors.surface },
-    ["\19"] = { bg = colors.palette.orange, fg = colors.surface },
-    ic = { bg = colors.palette.yellow, fg = colors.surface },
-    R = { bg = colors.palette.orange, fg = colors.surface },
-    Rv = { bg = colors.palette.orange, fg = colors.surface },
-    cv = { bg = colors.palette.red, fg = colors.fg },
-    ce = { bg = colors.palette.red, fg = colors.fg },
-    r = { bg = colors.palette.cyan, fg = colors.surface },
-    rm = { bg = colors.palette.cyan, fg = colors.surface },
-    ["r?"] = { bg = colors.palette.cyan, fg = colors.surface },
-    ["!"] = { bg = colors.palette.cyan, fg = colors.surface },
-    t = { bg = colors.palette.blue, fg = colors.surface },
+    n = "purple",
+    i = "green",
+    v = "yellow",
+    ["\22"] = "blue",
+    V = "yellow",
+    c = "magenta",
+    no = "orange",
+    s = "orange",
+    S = "orange",
+    ["\19"] = "orange",
+    ic = "yellow",
+    R = "orange",
+    Rv = "orange",
+    cv = "red",
+    ce = "red",
+    r = "cyan",
+    rm = "cyan",
+    ["r?"] = "cyan",
+    ["!"] = "cyan",
+    t = "blue",
   }
 
   ---@return { fg: string, bg: string }
   local function mode_style()
-    return mode_colors[vim.fn.mode()] or { bg = colors.palette.cyan, fg = colors.surface }
+    local mode = vim.fn.mode()
+    return {
+      bg = colors.palette[mode_colors[mode] or "cyan"],
+      fg = (mode == "cv" or mode == "ce") and colors.fg or colors.surface,
+    }
   end
 
   local config = {
     options = {
-      theme = {
-        normal = { c = { fg = colors.fg, bg = transparent } },
-        inactive = { c = { fg = colors.fg, bg = transparent } },
-      },
+      theme = function()
+        return {
+          normal = { c = { fg = colors.fg, bg = transparent } },
+          inactive = { c = { fg = colors.fg, bg = transparent } },
+        }
+      end,
       component_separators = "",
       section_separators = "",
       globalstatus = true,
@@ -83,8 +98,23 @@ function M.setup()
     inactive_sections = {
       lualine_a = {},
       lualine_b = {},
-      lualine_c = { { "filename", path = 1, color = { fg = colors.fg } } },
-      lualine_x = { { "location", color = { fg = colors.fg } } },
+      lualine_c = {
+        {
+          "filename",
+          path = 1,
+          color = function()
+            return { fg = colors.fg }
+          end,
+        },
+      },
+      lualine_x = {
+        {
+          "location",
+          color = function()
+            return { fg = colors.fg }
+          end,
+        },
+      },
       lualine_y = {},
       lualine_z = {},
     },
@@ -212,14 +242,18 @@ function M.setup()
   ins_left_capsule({
     "branch",
     cond = all(conditions.buffer_editable, conditions.git_workspace, conditions.width_gt_80),
-    color = { fg = colors.palette.magenta, bg = colors.surface, gui = "bold" },
+    color = function()
+      return { fg = colors.palette.magenta, bg = colors.surface, gui = "bold" }
+    end,
     separator = { left = "" },
     icons_enabled = false,
   }, {
     icon = function()
       return ""
     end,
-    color = { fg = colors.surface, bg = colors.palette.magenta },
+    color = function()
+      return { fg = colors.surface, bg = colors.palette.magenta }
+    end,
   }, { left = true })
 
   ins_left_capsule({
@@ -275,7 +309,9 @@ function M.setup()
       end
       return "No LSP"
     end,
-    color = { fg = colors.fg, gui = "bold" },
+    color = function()
+      return { fg = colors.fg, gui = "bold" }
+    end,
   })
   space(true, all(conditions.lsp_active, conditions.width_gt_60))
 
@@ -284,11 +320,13 @@ function M.setup()
     symbols = { added = " ", modified = "󰝤 ", removed = " " },
     cond = conditions.width_gt_60,
     separator = { left = "", right = "" },
-    color = { fg = colors.fg, bg = colors.surface },
+    color = function()
+      return { fg = colors.fg, bg = colors.surface }
+    end,
     diff_color = {
-      added = { fg = colors.palette.green, bg = colors.surface },
-      modified = { fg = colors.palette.orange, bg = colors.surface },
-      removed = { fg = colors.palette.red, bg = colors.surface },
+      added = "ConfigStatusDiffAdd",
+      modified = "ConfigStatusDiffChange",
+      removed = "ConfigStatusDiffDelete",
     },
     padding = { left = 0, right = 0 },
   })
@@ -302,7 +340,9 @@ function M.setup()
       return noice_status.mode.get()
     end,
     cond = has_mode,
-    color = { fg = colors.surface, bg = colors.palette.yellow },
+    color = function()
+      return { fg = colors.surface, bg = colors.palette.yellow }
+    end,
     separator = { left = "", right = "" },
     padding = { left = 1, right = 1 },
   })
@@ -315,7 +355,9 @@ function M.setup()
       return search:match("%[[^%]]+%]") or search
     end,
     cond = has_search,
-    color = { fg = colors.surface, bg = colors.palette.cyan },
+    color = function()
+      return { fg = colors.surface, bg = colors.palette.cyan }
+    end,
     separator = { left = "", right = "" },
     padding = { left = 0, right = 0 },
   })
@@ -324,7 +366,9 @@ function M.setup()
   ins_right({
     "filetype",
     cond = all(conditions.buffer_not_empty, conditions.buffer_editable, conditions.width_gt_100),
-    color = { fg = colors.surface, bg = colors.palette.magenta },
+    color = function()
+      return { fg = colors.surface, bg = colors.palette.magenta }
+    end,
     colored = false,
     icon_only = true,
     separator = { left = "" },
@@ -333,7 +377,9 @@ function M.setup()
   ins_right({
     "filetype",
     cond = all(conditions.buffer_not_empty, conditions.buffer_editable, conditions.width_gt_100),
-    color = { fg = colors.palette.magenta, bg = colors.surface },
+    color = function()
+      return { fg = colors.palette.magenta, bg = colors.surface }
+    end,
     icons_enabled = false,
     separator = { right = "" },
     padding = { left = 1, right = 0 },
@@ -343,7 +389,9 @@ function M.setup()
   ins_right({
     "progress",
     cond = conditions.width_gt_100,
-    color = { fg = colors.fg, bg = colors.surface },
+    color = function()
+      return { fg = colors.fg, bg = colors.surface }
+    end,
     icons_enabled = false,
     separator = { left = "", right = "" },
     padding = { left = 1, right = 1 },
@@ -352,8 +400,10 @@ function M.setup()
 
   ins_right({
     "location",
-    color = { fg = colors.surface, bg = colors.palette.purple, gui = "bold" },
-    separator = { left = "", color = { fg = colors.palette.purple, bg = colors.palette.purple } },
+    color = function()
+      return { fg = colors.surface, bg = colors.palette.purple, gui = "bold" }
+    end,
+    separator = { left = "" },
     padding = { left = 0, right = 1 },
   })
 
@@ -361,5 +411,8 @@ function M.setup()
 end
 
 M.setup()
+theme_highlights.on_refresh("lualine", function()
+  lualine.refresh({ scope = "all", place = { "statusline", "winbar" }, force = true })
+end, 20)
 
 return M

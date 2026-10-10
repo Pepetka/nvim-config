@@ -1,7 +1,7 @@
 local dap = require("dap")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
-local colors = require("utils.colors")
+local theme_highlights = require("utils.theme_highlights")
 
 local js_debug_path = vim.fn.stdpath("data") .. "/mason/packages/js-debug-adapter/js-debug/src/dapDebugServer.js"
 
@@ -175,21 +175,16 @@ dap.configurations.go = {
   },
 }
 
-local function setup_dap_highlights()
-  vim.api.nvim_set_hl(0, "DapBreakpoint", { fg = colors.error })
-  vim.api.nvim_set_hl(0, "DapBreakpointCondition", { fg = colors.alert })
-  vim.api.nvim_set_hl(0, "DapBreakpointRejected", { fg = colors.warning })
-  vim.api.nvim_set_hl(0, "DapLogPoint", { fg = colors.info })
-  vim.api.nvim_set_hl(0, "DapStopped", { fg = colors.accent })
-  vim.api.nvim_set_hl(0, "DapStoppedLine", { bg = colors.bg_visual })
-end
-
-setup_dap_highlights()
-
-vim.api.nvim_create_autocmd("ColorScheme", {
-  group = vim.api.nvim_create_augroup("DapHighlights", { clear = true }),
-  callback = setup_dap_highlights,
-})
+theme_highlights.register("dap", function(c)
+  return {
+    DapBreakpoint = { fg = c.error },
+    DapBreakpointCondition = { fg = c.alert },
+    DapBreakpointRejected = { fg = c.warning },
+    DapLogPoint = { fg = c.info },
+    DapStopped = { fg = c.accent },
+    DapStoppedLine = { bg = c.bg_visual },
+  }
+end)
 
 vim.fn.sign_define("DapBreakpoint", { text = "●", texthl = "DapBreakpoint" })
 vim.fn.sign_define("DapBreakpointCondition", { text = "◆", texthl = "DapBreakpointCondition" })

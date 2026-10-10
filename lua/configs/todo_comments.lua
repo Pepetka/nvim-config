@@ -3,9 +3,8 @@ local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
 local theme_highlights = require("utils.theme_highlights")
 
-local function set_todo_highlights()
-  local c = require("utils.colors")
-  local groups = {
+theme_highlights.register("todo_comments", function(c)
+  return {
     TodoColorError = { fg = c.error },
     TodoColorWarning = { fg = c.warning },
     TodoColorAlert = { fg = c.alert },
@@ -16,12 +15,8 @@ local function set_todo_highlights()
     TodoColorTest = { fg = c.test },
     TodoColorDefault = { fg = c.fg },
   }
-  for name, opts in pairs(groups) do
-    vim.api.nvim_set_hl(0, name, opts)
-  end
-end
+end)
 
-set_todo_highlights()
 todo.setup({
   signs = true,
   sign_priority = 8,
@@ -88,7 +83,6 @@ todo.setup({
     pattern = [[\b(KEYWORDS):]],
   },
 })
-theme_highlights.register("todo_comments", set_todo_highlights)
 
 -- ═══════════════════════════════════════════════════════════════
 --  Global keymaps
@@ -99,7 +93,3 @@ end
 
 map("n", "<leader>qf", "<Cmd>TodoFzfLua<CR>", opts("Find todos"))
 map("n", "<leader>qt", "<Cmd>Trouble todo toggle<CR>", opts("Find todos (Trouble)"))
-
-return {
-  set_highlights = set_todo_highlights,
-}

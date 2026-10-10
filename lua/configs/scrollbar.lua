@@ -1,22 +1,22 @@
 local scrollbar = require("scrollbar")
 local theme_highlights = require("utils.theme_highlights")
 
-local function set_scrollbar_highlights()
-  local c = require("utils.colors")
-  vim.api.nvim_set_hl(0, "ScrollbarHandleSource", { bg = c.muted })
-  vim.api.nvim_set_hl(0, "ScrollbarCursorSource", { fg = c.accent })
-  vim.api.nvim_set_hl(0, "ScrollbarSearchSource", { fg = c.warning })
-  vim.api.nvim_set_hl(0, "ScrollbarErrorSource", { fg = c.error })
-  vim.api.nvim_set_hl(0, "ScrollbarWarnSource", { fg = c.warning })
-  vim.api.nvim_set_hl(0, "ScrollbarInfoSource", { fg = c.info })
-  vim.api.nvim_set_hl(0, "ScrollbarHintSource", { fg = c.palette.hint })
-  vim.api.nvim_set_hl(0, "ScrollbarMiscSource", { fg = c.palette.purple })
-  vim.api.nvim_set_hl(0, "ScrollbarGitAddSource", { fg = c.success })
-  vim.api.nvim_set_hl(0, "ScrollbarGitChangeSource", { fg = c.warning })
-  vim.api.nvim_set_hl(0, "ScrollbarGitDeleteSource", { fg = c.error })
-end
+theme_highlights.register("scrollbar", function(c)
+  return {
+    ScrollbarHandleSource = { bg = c.muted },
+    ScrollbarCursorSource = { fg = c.accent },
+    ScrollbarSearchSource = { fg = c.warning },
+    ScrollbarErrorSource = { fg = c.error },
+    ScrollbarWarnSource = { fg = c.warning },
+    ScrollbarInfoSource = { fg = c.info },
+    ScrollbarHintSource = { fg = c.palette.hint },
+    ScrollbarMiscSource = { fg = c.palette.purple },
+    ScrollbarGitAddSource = { fg = c.success },
+    ScrollbarGitChangeSource = { fg = c.warning },
+    ScrollbarGitDeleteSource = { fg = c.error },
+  }
+end)
 
-set_scrollbar_highlights()
 scrollbar.setup({
   show = true,
   show_in_active_only = false,
@@ -58,8 +58,3 @@ scrollbar.setup({
     ale = false,
   },
 })
-theme_highlights.register("scrollbar", set_scrollbar_highlights)
-
-return {
-  set_highlights = set_scrollbar_highlights,
-}

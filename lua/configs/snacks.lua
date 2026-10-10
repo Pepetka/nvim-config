@@ -1,7 +1,7 @@
 local snacks = require("snacks")
 local map = vim.keymap.set
 local map_opts = require("utils.map_opts")
-local colors = require("utils.colors")
+local theme_highlights = require("utils.theme_highlights")
 
 local excluded = {
   filetypes = {
@@ -25,11 +25,6 @@ local excluded = {
     "prompt",
   },
 }
-
-local function set_indent_hl()
-  vim.api.nvim_set_hl(0, "SnacksIndent", { fg = colors.gutter })
-  vim.api.nvim_set_hl(0, "SnacksIndentScope", { fg = colors.focus, bold = true })
-end
 
 snacks.setup({
   indent = {
@@ -145,11 +140,12 @@ vim.notify = function(msg, level, opts)
   return notify(msg, level, opts)
 end
 
-set_indent_hl()
-vim.api.nvim_create_autocmd("ColorScheme", {
-  group = vim.api.nvim_create_augroup("snacks_indent_hl", { clear = true }),
-  callback = set_indent_hl,
-})
+theme_highlights.register("snacks", function(c)
+  return {
+    SnacksIndent = { fg = c.gutter },
+    SnacksIndentScope = { fg = c.focus, bold = true },
+  }
+end)
 
 local function opts(desc)
   return map_opts("General: " .. desc)

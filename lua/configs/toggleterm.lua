@@ -1,6 +1,7 @@
 local toggleterm = require("toggleterm")
 
 toggleterm.setup({
+  shade_terminals = false,
   direction = "float",
   open_mapping = [[<c-f>]],
   start_in_insert = true,

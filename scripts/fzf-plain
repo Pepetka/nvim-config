@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+# fzf-lua probes the binary before opening a picker.
+if [ "${1:-}" = "--version" ]; then
+  exec fzf "$@"
+fi
+
+# Diagnostic providers serialize RGB directly into their callback strings.
+# Strip SGR at the stream boundary; keep all text and flush each line so an
+# asynchronously populated picker doesn't wait for a full output buffer.
+awk 'BEGIN { esc = sprintf("%c", 27) }
+  { gsub(esc "\\[[0-9;]*m", ""); print; fflush() }' | fzf "$@"
