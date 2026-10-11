@@ -143,7 +143,14 @@ local defaults = {
   group_align = "left",
   mode_align = "right",
   group_underline = true,
-  layout = { key_gap = 4, mapping_spacing = 1, group_spacing = 2 },
+  layout = {
+    key_gap = 4,
+    mapping_spacing = 1,
+    group_spacing = 2,
+    max_columns = 4,
+    column_gap = 4,
+    max_column_width = 60,
+  },
   mappings = { close = { "q", "<Esc>" }, next_mode = "<tab>", prev_mode = "<S-Tab>" },
 }
 
@@ -175,7 +182,14 @@ local schema = {
   group_align = align,
   mode_align = align,
   group_underline = boolean,
-  layout = { key_gap = integer, mapping_spacing = integer, group_spacing = integer },
+  layout = {
+    key_gap = integer,
+    mapping_spacing = integer,
+    group_spacing = integer,
+    max_columns = positive_integer,
+    column_gap = integer,
+    max_column_width = positive_integer,
+  },
   mappings = { close = strings, next_mode = nonempty, prev_mode = nonempty },
   open_mapping = nonempty,
 }

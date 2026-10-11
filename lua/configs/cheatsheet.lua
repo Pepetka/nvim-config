@@ -28,7 +28,7 @@ local options = {
   modes = { "n", "i", "v", "o" },
   exclude = { desc_patterns = { "^Lua function", "^MiniPairs", "^:help ", "action for .+ pair$" } },
   include = { patterns = { "^[%[%]][qQlL]$", "^[%[%]]<C%-[QL]>$" } },
-  layout = { key_gap = 4, mapping_spacing = 0, group_spacing = 2 },
+  layout = { key_gap = 2, mapping_spacing = 1, group_spacing = 2, max_column_width = 40, max_columns = 2 },
   sort_groups = {
     "find",
     "git",

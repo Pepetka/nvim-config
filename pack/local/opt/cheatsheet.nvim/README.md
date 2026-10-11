@@ -82,25 +82,53 @@ one. The host owns `<leader>ch`, its group rules and ordering in `lua/configs/ch
   are skipped. Unknown options and rule fields warn and are ignored. Modes must be a
   nonempty list of unique supported modes.
 
-`layout` controls document density. All values are nonnegative integers and accept zero:
+`layout` controls document density and columns. Gap and spacing values are nonnegative
+integers and accept zero; `max_columns` and `max_column_width` are positive integers:
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `key_gap` | `4` | Spaces between the padded key column and descriptions |
 | `mapping_spacing` | `1` | Blank lines between mappings in a group |
-| `group_spacing` | `2` | Blank lines between groups |
+| `group_spacing` | `2` | Blank lines between groups in a column |
+| `max_columns` | `4` | Upper limit for the number of columns; `1` keeps a single column |
+| `column_gap` | `4` | Spaces between columns |
+| `max_column_width` | `60` | Preferred maximum column width used to choose the column count |
 
 Spacing applies only between items; it adds no trailing blank lines after the final item.
 Window padding and the blank line below a group header when `group_underline = false`
 remain separate. To make mapping rows compact, set `mapping_spacing = 0`.
+
+### Columns
+
+The mode line spans the whole window; groups below it are laid out in newspaper order:
+top to bottom, then into the next column, preserving `sort_groups`. Groups are never split.
+
+- The preferred width is the widest unwrapped line measured with each group's own key width,
+  capped by `max_column_width`, but never narrower than the widest group header or a group's
+  key column plus one description cell.
+- The column count is how many preferred widths with `column_gap` fit the content width,
+  limited by `max_columns` and the number of groups. Columns get equal widths; the remainder
+  of the division (fewer cells than columns) stays unused on the right.
+- Group boundaries minimize the tallest column; ties keep earlier columns fuller.
+- Each column aligns keys to its own widest key. With two or more columns, descriptions
+  wider than the column wrap onto continuation lines indented under the description column.
+- With two or more columns every line fits its column: separators are repeated by cells
+  (also for a double-width `─`), and any remaining overflow, such as a wide character in a
+  one-cell description, is clipped instead of shifting the next column.
+- A single column renders exactly as before: no wrapping and horizontal scrolling for long lines.
+- Columns are not padded after the last nonempty segment of a row; text inside a segment, such
+  as a padded key with an empty description, is kept as is.
+- A resize recomputes columns in the same window. The view is kept while the column count is
+  unchanged; when it changes, the cursor and view return to the top.
+- Wrapped descriptions are cached per mapping and width, so balancing and rendering share them.
 
 Defaults and validation live in `lua/cheatsheet/core/config.lua`; LuaCATS option and
 internal interface types live in `lua/cheatsheet/types.lua`. Other options cover window
 size, padding and title, alignments, separators, and window-local mappings. Width and
 height are fractions in `(0, 1]`; padding is nonnegative integers and zindex is a positive
 integer. The float is centered with space reserved for its border, with content dimensions
-of at least one cell. Border `none` omits the border title. Long content remains horizontally
-scrollable with wrapping disabled.
+of at least one cell. Border `none` omits the border title. Long single-column content remains
+horizontally scrollable with window wrapping disabled.
 
 ## Session lifecycle
 
@@ -108,8 +136,8 @@ The controller owns one session. Floating windows belong to a tab page: opening 
 the browser from another tab page closes the hidden window and opens it on the current one,
 keeping the selected mode.
 
-Resize updates the existing window and buffer, preserving mode, cursor, scroll position
-and focus. Repeated resize events are coalesced, and unchanged geometry skips redraw.
+Resize updates the existing window and buffer, preserving mode and focus; cursor and scroll
+position are preserved unless the column count changes. Repeated resize events are coalesced, and unchanged geometry skips redraw.
 Highlight groups are default links (descriptions use `NormalFloat`), so definitions from the
 host or a colorscheme take precedence; ColorScheme restores links cleared by `:highlight clear`.
 
@@ -128,7 +156,9 @@ remaining session resources stay tracked so closure can be retried.
 | `core.patterns`     | Lua-pattern syntax validation, including suffixes unreachable during a match |
 | `core.mappings`     | Precedence, filtering, key/description formatting, grouping and sorting      |
 | `core.modes`        | Mode lookup and cycling                                                      |
-| `core.layout`       | Geometry, alignment, document lines and explicit highlight spans             |
+| `core.text`         | UTF-8 characters, cell-aware word wrapping and clipping                      |
+| `core.columns`      | Column count and width, balanced partition, vertical and horizontal joining  |
+| `core.layout`       | Geometry, group blocks, column assembly, document lines and highlight spans  |
 | `controller`        | Session lifecycle and orchestration through an injected adapter              |
 | `integrations.nvim` | Neovim commands, events, keymaps, resources, measurement and extmarks        |
 | `init`              | The public API facade                                                        |
@@ -147,6 +177,7 @@ is passed by absolute path.
 ```sh
 luajit tests/core.lua
 luajit tests/layout.lua
+luajit tests/columns.lua
 luajit tests/controller.lua
 NVIM_LOG_FILE=/tmp/cheatsheet-nvim.log nvim --clean --headless -i NONE -l tests/nvim.lua
 NVIM_LOG_FILE=/tmp/cheatsheet-adapter.log nvim --clean --headless -i NONE -l tests/adapter.lua
@@ -170,18 +201,22 @@ including native Neovim API definitions. It fails on errors and warnings, requir
 configuration and writes temporary settings and logs outside the plugin. It finds LuaLS
 on PATH or in Mason; set `LUA_LS=/path/to/lua-language-server` to override its location.
 
-The three pure suites also run with `nvim --clean --headless -i NONE -l tests/<suite>.lua`;
+The four pure suites also run with `nvim --clean --headless -i NONE -l tests/<suite>.lua`;
 they remove the `vim` global while executing tests. No dependencies are installed or modified.
 
 - **Core:** option validation and unknown-option warnings, immutable inputs/defaults, pattern syntax,
   lhs/description filters and inclusions, raw keymap modes, source precedence, descriptions, icons,
   case-insensitive sorting, leader and Space formatting and modes.
 - **Layout:** exact lines and spans, Unicode byte/cell boundaries, alignments, separators,
-  configurable spacing (including zero), empty results, empty icons/descriptions and small-window geometry.
+  configurable spacing (including zero), empty results, empty icons/descriptions, small-window geometry,
+  column targets, wrapped mapping lines, block heights, per-column key widths, newspaper order and
+  single-column equivalence.
+- **Columns:** UTF-8 splitting and word wrap, column count and width, partition optimality against
+  exhaustive search with deterministic ties, stacking and cell-aligned composition.
 - **Controller:** independent instances, setup and reconfiguration, source context, mode changes,
   tab pages, resize, ownership, reentrancy, error handling and cleanup retries using an injected test adapter.
 - **Neovim:** public API and actual mapped keys, command arguments and completion, source-buffer
-  overrides, select-only mappings, extmarks, ColorScheme and host highlights, resize/view/focus,
+  overrides, select-only mappings, extmarks, ColorScheme and host highlights, columns, resize/view/focus,
   tab pages, external closure, source deletion and queued events.
 - **Adapter:** every supported mode and border, default leader, optional and reconfigured opening mapping,
   tiny floats, explicit prefixes, description filters, custom layout through resize,

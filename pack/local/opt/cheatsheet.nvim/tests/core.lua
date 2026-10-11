@@ -100,6 +100,10 @@ local invalid_options = {
   { layout = { mapping_spacing = math.huge } },
   { layout = { mapping_spacing = 0 / 0 } },
   { layout = { group_spacing = "2" } },
+  { layout = { max_columns = 0 } },
+  { layout = { max_columns = 1.5 } },
+  { layout = { column_gap = -1 } },
+  { layout = { max_column_width = 0 } },
   { group_rules = { { pattern = "x", group = "test", prefix = false } } },
   { group_rules = { { pattern = "x", group = "test", prefix = "bad\nprefix" } } },
 }
@@ -361,7 +365,10 @@ t.test("layout settings merge partially, accept zero and do not mutate options",
   local before = t.copy(input)
   local options, messages = config.normalize(input)
   t.equal(messages, {})
-  t.equal(options.layout, { key_gap = 0, mapping_spacing = 0, group_spacing = 2 })
+  t.equal(
+    options.layout,
+    { key_gap = 0, mapping_spacing = 0, group_spacing = 2, max_columns = 4, column_gap = 4, max_column_width = 60 }
+  )
   t.equal(options.exclude.desc_patterns, {})
   options.layout.key_gap = 20
   options.exclude.desc_patterns[1] = "changed"

@@ -14,6 +14,7 @@
 ---@field lines integer
 ---@field current_buf integer
 ---@field tab integer
+---@field extra? CheatsheetRawMapping[]
 ---@field options? CheatsheetConfig
 ---@field callbacks? CheatsheetCallbacks
 ---@field session? CheatsheetTestSession

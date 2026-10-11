@@ -39,6 +39,30 @@ function M.equal(actual, expected, path)
   end
 end
 
+---@param document CheatsheetDocument
+---@return nil
+function M.check_spans(document)
+  for _, span in ipairs(document.spans) do
+    local text = document.lines[span.row + 1]
+    assert(text, "span row must exist")
+    assert(span.start_col >= 0 and span.end_col > span.start_col and span.end_col <= #text)
+    -- Neither endpoint may split a UTF-8 continuation byte.
+    for _, col in ipairs({ span.start_col, span.end_col }) do
+      local byte = text:byte(col + 1)
+      assert(not byte or byte < 128 or byte >= 192, "span splits a UTF-8 character")
+    end
+  end
+end
+
+---Display width for pure tests: one cell per code point, two cells for "界".
+---@param text string
+---@return integer
+function M.measure(text)
+  local _, codepoints = text:gsub("[^\128-\191]", "")
+  local _, wide = text:gsub("界", "")
+  return codepoints + wide
+end
+
 ---@param name string
 ---@param fn CheatsheetAction
 ---@return nil

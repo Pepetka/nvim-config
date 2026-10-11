@@ -80,7 +80,7 @@ function M.setup()
         statusline = { "NvimTree", "mason", "lazy", "qf", "dashboard" },
         winbar = { "NvimTree", "mason", "lazy", "qf", "dashboard" },
       },
-      ignore_focus = { "NvimTree", "mason", "lazy", "qf", "dashboard" },
+      ignore_focus = { "NvimTree", "mason", "lazy", "qf", "dashboard", "cheatsheet" },
       refresh = {
         statusline = 100,
         tabline = 100,

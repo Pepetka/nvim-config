@@ -87,7 +87,11 @@ local function fixture(options, skip_setup)
     t.equal(source_buf, 10)
     state.collected_mode = mode
     local local_mappings = state.source_deleted and {} or { { lhs = "xx", desc = "Test: Local " .. mode } }
-    return { { lhs = "xx", desc = "Test: Global " .. mode } }, local_mappings
+    local global = { { lhs = "xx", desc = "Test: Global " .. mode } }
+    for _, mapping in ipairs(state.extra or {}) do
+      global[#global + 1] = mapping
+    end
+    return global, local_mappings
   end
   ---@param config CheatsheetConfig
   ---@param source_buf integer
@@ -280,6 +284,23 @@ t.test("resize preserves the session and mode, does not reset the view and skips
   t.equal(assert(state.size).width, 80)
   t.equal(state.reset, false)
   contains(state, "Local i")
+end)
+
+t.test("resize resets the view only when the column count changes", function()
+  local instance, state = fixture()
+  state.extra = { { lhs = "yy", desc = "Other: second group" } }
+  instance.show()
+  t.equal(assert(state.document).columns, 2)
+  state.columns = 110
+  instance.resize()
+  t.equal(state.reset, false)
+  state.columns = 20
+  instance.resize()
+  t.equal(assert(state.document).columns, 1)
+  t.equal(state.reset, true)
+  state.columns = 22
+  instance.resize()
+  t.equal(state.reset, false)
 end)
 
 t.test("hide is idempotent and reopening resets to the first mode", function()

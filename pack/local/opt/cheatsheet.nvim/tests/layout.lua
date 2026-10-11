@@ -7,28 +7,9 @@ local t = require("support")
 local host_vim = rawget(_G, "vim")
 _G.vim = nil
 
----@param text string
----@return integer
-local function measure(text)
-  local _, codepoints = text:gsub("[^\128-\191]", "")
-  local _, wide = text:gsub("界", "")
-  return codepoints + wide
-end
+local measure = t.measure
 
----@param document CheatsheetDocument
----@return nil
-local function check_spans(document)
-  for _, span in ipairs(document.spans) do
-    local text = document.lines[span.row + 1]
-    assert(text, "span row must exist")
-    assert(span.start_col >= 0 and span.end_col > span.start_col and span.end_col <= #text)
-    -- Neither endpoint may split a UTF-8 continuation byte.
-    for _, col in ipairs({ span.start_col, span.end_col }) do
-      local byte = text:byte(col + 1)
-      assert(not byte or byte < 128 or byte >= 192, "span splits a UTF-8 character")
-    end
-  end
-end
+local check_spans = t.check_spans
 
 t.test("ASCII document has exact spacing and explicit highlight spans", function()
   local options = config.normalize({
@@ -145,6 +126,7 @@ t.test("group and mapping spacing has no trailing inter-group blanks", function(
     window = { padding = { left = 0, top = 0, bottom = 0 } },
     mode_align = "left",
     group_underline = false,
+    layout = { max_columns = 1 },
   })
   local document = layout.build({
     { name = "first", icon = "", mappings = { { lhs = "a", desc = "A" } } },
@@ -218,7 +200,7 @@ end)
 
 t.test("zero spacing creates compact rows without trailing blanks or overlapping spans", function()
   local options = config.normalize({
-    layout = { key_gap = 0, mapping_spacing = 0, group_spacing = 0 },
+    layout = { key_gap = 0, mapping_spacing = 0, group_spacing = 0, max_columns = 1 },
     window = { padding = { left = 0, right = 0, top = 0, bottom = 0 } },
     modes = { "n" },
     mode_align = "left",
@@ -235,6 +217,252 @@ t.test("zero spacing creates compact rows without trailing blanks or overlapping
     end
   end
   check_spans(document)
+end)
+
+---@param name string
+---@param mappings CheatsheetDisplayMapping[]
+---@return CheatsheetDisplayGroup
+local function group(name, mappings)
+  return { name = name, icon = "", mappings = mappings }
+end
+
+t.test("column target caps natural width and keeps headers and keys readable", function()
+  local groups = { group("tools", { { lhs = "ab", desc = string.rep("x", 30) } }) }
+  local options = config.normalize({ layout = { key_gap = 4, max_column_width = 20 } })
+  t.equal(layout.column_target(groups, options, measure), 20)
+  options.layout.max_column_width = 60
+  t.equal(layout.column_target(groups, options, measure), 36)
+  options.layout.max_column_width = 1
+  t.equal(layout.column_target(groups, options, measure), 7)
+  groups[1].name = string.rep("n", 12)
+  t.equal(layout.column_target(groups, options, measure), 12)
+end)
+
+t.test("mapping lines wrap descriptions under the description column", function()
+  local mapping = { lhs = "a", desc = "one two three" }
+  t.equal(layout.mapping_lines(mapping, 2, 1, 7, measure), {
+    lines = { "a  one two", "   three" },
+    spans = {
+      { row = 0, start_col = 0, end_col = 2, hl_group = "CheatsheetKey" },
+      { row = 0, start_col = 3, end_col = 10, hl_group = "CheatsheetDesc" },
+      { row = 1, start_col = 3, end_col = 8, hl_group = "CheatsheetDesc" },
+    },
+  })
+  t.equal(layout.mapping_lines(mapping, 2, 1, nil, measure).lines, { "a  one two three" })
+  t.equal(layout.mapping_lines({ lhs = "x", desc = "" }, 1, 1, 5, measure).lines, { "x " })
+end)
+
+t.test("blocks are column-relative with aligned headers and column-wide separators", function()
+  local options = config.normalize({ group_align = "center", layout = { key_gap = 1, mapping_spacing = 1 } })
+  local block = layout.block(
+    { name = "git", icon = "I ", mappings = { { lhs = "a", desc = "Alpha beta" }, { lhs = "bb", desc = "Gamma" } } },
+    2,
+    10,
+    options,
+    measure,
+    7
+  )
+  t.equal(block.lines, { "  I git", string.rep("─", 10), "a  Alpha", "   beta", "", "bb Gamma" })
+  t.equal(block.spans[1], { row = 0, start_col = 2, end_col = 4, hl_group = "CheatsheetGroupIcon" })
+  t.equal(block.spans[3], { row = 1, start_col = 0, end_col = 30, hl_group = "CheatsheetSeparator" })
+  t.check_spans(block)
+end)
+
+t.test("block height matches rendered blocks for every spacing and wrap combination", function()
+  local subject = group("tools", {
+    { lhs = "a", desc = "short" },
+    { lhs = "bb", desc = "a longer description that wraps" },
+    { lhs = "c", desc = "" },
+  })
+  for _, underline in ipairs({ true, false }) do
+    for spacing = 0, 2 do
+      for _, desc_width in ipairs({ false, 3, 10, 100 }) do
+        local options = config.normalize({ group_underline = underline, layout = { mapping_spacing = spacing } })
+        local width = desc_width or nil
+        local block = layout.block(subject, 2, 30, options, measure, width)
+        t.equal(layout.block_height(subject, options, measure, width), #block.lines)
+      end
+    end
+  end
+end)
+
+t.test("column height uses the key width of its own range", function()
+  local options = config.normalize({ group_underline = false, layout = { key_gap = 1, group_spacing = 1 } })
+  local groups = {
+    group("a", { { lhs = "a", desc = "aa bb cc" } }),
+    group("b", { { lhs = "abcdef", desc = "x" } }),
+  }
+  t.equal(layout.column_height(groups, { first = 1, last = 1 }, 12, options, measure, true), 3)
+  t.equal(layout.column_height(groups, { first = 1, last = 2 }, 12, options, measure, true), 4 + 1 + 3)
+  t.equal(layout.column_height(groups, { first = 1, last = 2 }, 12, options, measure, false), 3 + 1 + 3)
+  for _, wrap in ipairs({ true, false }) do
+    local range = { first = 1, last = 2 }
+    t.equal(
+      layout.column_height(groups, range, 12, options, measure, wrap),
+      #layout.column(groups, range, 12, options, measure, wrap).lines
+    )
+  end
+end)
+
+---@param width integer
+---@param max_columns? integer
+---@return CheatsheetDocument
+local function multi(width, max_columns)
+  local options = config.normalize({
+    window = { padding = { left = 1, right = 1, top = 0, bottom = 0 } },
+    modes = { "n" },
+    mode_align = "left",
+    group_underline = false,
+    layout = {
+      key_gap = 1,
+      mapping_spacing = 0,
+      group_spacing = 1,
+      column_gap = 2,
+      max_column_width = 10,
+      max_columns = max_columns,
+    },
+  })
+  return layout.build({
+    group("a", { { lhs = "a", desc = "Alpha" } }),
+    group("b", { { lhs = "bb", desc = "Beta one two" } }),
+    group("c", { { lhs = "c", desc = "Gamma" } }),
+  }, "n", options, width, measure)
+end
+
+t.test("wide documents place groups in columns with their own key widths and wrapping", function()
+  local document = multi(36)
+  local pad = string.rep(" ", 11)
+  t.equal(document.lines, {
+    " [normal] ",
+    " ",
+    " a" .. pad .. "b" .. pad .. "c",
+    " ",
+    " a Alpha     bb Beta     c Gamma",
+    " " .. string.rep(" ", 12) .. "   one two",
+  })
+  t.check_spans(document)
+  for row = 3, #document.lines do
+    local line = document.lines[row]
+    assert(line == " " or not line:find("%s$"), "trailing whitespace: " .. line)
+  end
+  local continuation = false
+  for _, span in ipairs(document.spans) do
+    if span.row == 5 and span.hl_group == "CheatsheetDesc" then
+      t.equal(document.lines[6]:sub(span.start_col + 1, span.end_col), "one two")
+      continuation = true
+    end
+  end
+  assert(continuation, "continuation lines must be highlighted as descriptions")
+end)
+
+t.test("narrow documents keep the unwrapped single-column layout", function()
+  t.equal(multi(20), multi(20, 1))
+  t.equal(multi(36, 1).lines[9], " bb Beta one two")
+  t.equal(multi(36, 2).lines[3], " a" .. string.rep(" ", 17) .. "c")
+end)
+
+t.test("columns keep the newspaper order of groups", function()
+  local options = config.normalize({
+    window = { padding = { left = 0, right = 0, top = 0, bottom = 0 } },
+    modes = { "n" },
+    mode_align = "left",
+    group_underline = false,
+    layout = { key_gap = 1, mapping_spacing = 0, group_spacing = 1, column_gap = 1, max_columns = 2 },
+  })
+  local mappings = { { lhs = "a", desc = "Alpha" } }
+  local document = layout.build({
+    group("g1", { mappings[1], mappings[1], mappings[1] }),
+    group("g2", mappings),
+    group("g3", mappings),
+    group("g4", mappings),
+  }, "n", options, 40, measure)
+  local gap = string.rep(" ", 18)
+  t.equal(document.lines[3], "g1" .. gap .. "g3")
+  t.equal(document.lines[7], "a Alpha" .. string.rep(" ", 13) .. "g4")
+  t.equal(document.lines[9], "g2" .. gap .. "a Alpha")
+  t.equal(#document.lines, 11)
+  t.check_spans(document)
+end)
+
+t.test("column target uses each group's own key width", function()
+  local options = config.normalize({ layout = { key_gap = 4, max_column_width = 60 } })
+  local groups = {
+    group("a", { { lhs = string.rep("k", 20), desc = "short" } }),
+    group("b", { { lhs = "x", desc = string.rep("d", 40) } }),
+  }
+  t.equal(layout.column_target(groups, options, measure), 45)
+  options.layout.max_column_width = 1
+  t.equal(layout.column_target(groups, options, measure), 25)
+end)
+
+t.test("fit clips overflowing lines and their spans", function()
+  local document = layout.fit({
+    lines = { "abcdef", "ab", "a界b" },
+    spans = {
+      { row = 0, start_col = 0, end_col = 6, hl_group = "CheatsheetDesc" },
+      { row = 0, start_col = 4, end_col = 6, hl_group = "CheatsheetKey" },
+      { row = 2, start_col = 1, end_col = 5, hl_group = "CheatsheetDesc" },
+    },
+  }, 2, measure)
+  t.equal(document.lines, { "ab", "ab", "a" })
+  t.equal(document.spans, { { row = 0, start_col = 0, end_col = 2, hl_group = "CheatsheetDesc" } })
+end)
+
+t.test("separators fill the column by cells for double-width box characters", function()
+  local options = config.normalize()
+  ---@param value string
+  ---@return integer
+  local function wide_box(value)
+    local _, boxes = value:gsub("─", "")
+    return measure(value) + boxes
+  end
+  local block = layout.block(group("g", {}), 0, 11, options, wide_box)
+  t.equal(block.lines[2], string.rep("─", 5))
+end)
+
+t.test("segments wider than their column never shift neighbouring columns", function()
+  local options = config.normalize({
+    window = { padding = { left = 0, right = 0, top = 0, bottom = 0 } },
+    modes = { "n" },
+    group_underline = false,
+    layout = { key_gap = 1, column_gap = 1, max_column_width = 1, mapping_spacing = 0 },
+  })
+  local groups = {
+    group("a", { { lhs = "abcdefgh", desc = "界界" } }),
+    group("b", { { lhs = "b", desc = "Beta" } }),
+  }
+  local document = layout.build(groups, "n", options, 21, measure)
+  t.equal(document.columns, 2)
+  for row = 3, #document.lines do
+    local line = document.lines[row]
+    local second = line:sub(12)
+    assert(measure(line:sub(1, 11)) <= 11, "first column overflows: " .. line)
+    assert(second == "" or line:sub(11, 11) == " ", "second column shifted: " .. line)
+  end
+  t.check_spans(document)
+end)
+
+t.test("wrapped descriptions are cached between height and rendering", function()
+  local calls = 0
+  ---@param value string
+  ---@return integer
+  local function counting(value)
+    calls = calls + 1
+    return measure(value)
+  end
+  local options = config.normalize()
+  local subject = group("g", { { lhs = "a", desc = "one two three four" } })
+  layout.block_height(subject, options, counting, 5)
+  local first = calls
+  layout.block_height(subject, options, counting, 5)
+  t.equal(calls, first)
+  t.equal(layout.mapping_lines(subject.mappings[1], 1, 1, 5, counting).lines[2], "  two")
+end)
+
+t.test("complete documents report their column count", function()
+  t.equal(multi(36).columns, 3)
+  t.equal(multi(20).columns, 1)
+  t.equal(layout.build({}, "n", config.normalize(), 40, measure).columns, 1)
 end)
 
 local ok, err = pcall(t.run, "cheatsheet layout (without vim)")

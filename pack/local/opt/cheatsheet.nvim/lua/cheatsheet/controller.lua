@@ -17,6 +17,8 @@ function M.new(adapter)
   local session
   ---@type CheatsheetGeometry?
   local geometry
+  ---@type integer?
+  local shape
   local updating = false
   local controller = {}
 
@@ -42,14 +44,14 @@ function M.new(adapter)
 
   ---@return nil
   function controller.hide()
-    local previous, previous_mode, previous_geometry = session, mode, geometry
-    session, geometry = nil, nil
+    local previous, previous_mode, previous_geometry, previous_shape = session, mode, geometry, shape
+    session, geometry, shape = nil, nil, nil
     mode = options and options.modes[1] or nil
     if previous then
       local ok, err = pcall(adapter.close, previous)
       if not ok then
         if adapter.exists(previous) then
-          session, mode, geometry = previous, previous_mode, previous_geometry
+          session, mode, geometry, shape = previous, previous_mode, previous_geometry, previous_shape
         end
         report(err)
       end
@@ -65,8 +67,9 @@ function M.new(adapter)
     local groups = mappings.build(global, local_mappings, options, { mode = mode, leader = adapter.leader() })
     size = size or layout.geometry(options.window, adapter.viewport())
     local document = layout.build(groups, mode, options, size.width, adapter.measure)
-    adapter.update(session, size, document, reset)
-    geometry = size
+    -- A different column count rebuilds unrelated rows, so the previous view is meaningless.
+    adapter.update(session, size, document, reset or (shape ~= nil and document.columns ~= shape))
+    geometry, shape = size, document.columns
   end
 
   ---@param requested_mode? CheatsheetMode

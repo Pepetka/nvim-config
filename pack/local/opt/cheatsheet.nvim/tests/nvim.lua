@@ -361,6 +361,50 @@ test("visual mode hides select-only mappings and keeps visual ones with the same
   assert(ok, err)
 end)
 
+test("wide windows render groups in columns and narrow resize returns to one column", function(source)
+  for index = 1, 6 do
+    vim.keymap.set("n", "zc" .. index, function() end, { buffer = source, desc = "Column action number " .. index })
+  end
+  local columns = vim.o.columns
+  local ok, err = pcall(function()
+    vim.o.columns = 200
+    plugin.show()
+    local win, buf = float()
+    ---@return boolean
+    local function side_by_side()
+      for _, line in ipairs(api.nvim_buf_get_lines(buf, 0, -1, false)) do
+        if line:find("tests", 1, true) and line:find("other", 1, true) then
+          return true
+        end
+      end
+      return false
+    end
+    assert(side_by_side(), "groups must share a row in a wide window")
+    local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
+    for _, mark in
+      ipairs(api.nvim_buf_get_extmarks(buf, api.nvim_create_namespace("cheatsheet"), 0, -1, { details = true }))
+    do
+      local details = assert(mark[4])
+      assert(details.end_row == mark[2] and assert(details.end_col) <= #lines[mark[2] + 1])
+    end
+    api.nvim_win_call(win, function()
+      vim.fn.winrestview({ lnum = 5, topline = 3, leftcol = 2 })
+    end)
+    vim.o.columns = 40
+    api.nvim_exec_autocmds("VimResized", {})
+    assert(vim.wait(200, function()
+      return api.nvim_win_get_width(win) == 32
+    end))
+    t.equal(float(), win)
+    t.equal(api.nvim_get_current_buf(), buf)
+    assert(not side_by_side(), "a narrow window must use one column")
+    local view = api.nvim_win_call(win, vim.fn.winsaveview)
+    t.equal({ view.lnum, view.topline, view.leftcol }, { 1, 1, 0 })
+  end)
+  vim.o.columns = columns
+  assert(ok, err)
+end)
+
 test("queued resize callbacks cannot reopen a closed session", function()
   plugin.show()
   vim.o.columns = 80

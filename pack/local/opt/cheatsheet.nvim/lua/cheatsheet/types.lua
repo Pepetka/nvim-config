@@ -54,6 +54,9 @@
 ---@field key_gap integer Spaces between the padded key column and the description.
 ---@field mapping_spacing integer Blank lines between mappings.
 ---@field group_spacing integer Blank lines between groups.
+---@field max_columns integer Upper limit for the number of columns; 1 keeps a single column.
+---@field column_gap integer Spaces between columns.
+---@field max_column_width integer Preferred maximum column width used to choose the column count.
 
 ---@class CheatsheetConfig
 ---@field window CheatsheetWindowConfig
@@ -85,9 +88,17 @@
 ---@field group_align? CheatsheetGroupAlign
 ---@field mode_align? CheatsheetModeAlign
 ---@field group_underline? boolean
----@field layout? { key_gap?: integer, mapping_spacing?: integer, group_spacing?: integer }
+---@field layout? CheatsheetLayoutConfigPartial
 ---@field mappings? { close?: string[], next_mode?: string, prev_mode?: string }
 ---@field open_mapping? string | nil
+
+---@class CheatsheetLayoutConfigPartial
+---@field key_gap? integer
+---@field mapping_spacing? integer
+---@field group_spacing? integer
+---@field max_columns? integer
+---@field column_gap? integer
+---@field max_column_width? integer
 
 ---@class CheatsheetExcludeConfigPartial
 ---@field no_desc? boolean
@@ -160,9 +171,17 @@
 ---@field end_col integer Zero-based byte offset, exclusive.
 ---@field hl_group CheatsheetHighlight
 
+---Blocks and columns use the same shape with rows relative to their first line.
 ---@class CheatsheetDocument
 ---@field lines string[]
+---@field columns? integer Number of columns in a complete document.
 ---@field spans CheatsheetSpan[]
+
+---@class CheatsheetRange
+---@field first integer
+---@field last integer
+
+---@alias CheatsheetCost fun(first: integer, last: integer): integer
 
 ---@class CheatsheetSession
 ---@field buf? integer

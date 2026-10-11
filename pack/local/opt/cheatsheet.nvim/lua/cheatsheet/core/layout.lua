@@ -1,4 +1,6 @@
+local columns = require("cheatsheet.core.columns")
 local modes = require("cheatsheet.core.modes")
+local text = require("cheatsheet.core.text")
 local M = {}
 
 ---The float's dimensions include only its content; reserve cells for its border.
@@ -88,6 +90,191 @@ local function span(result, row, start_col, end_col, group)
   end
 end
 
+-- Wrapped descriptions per measure, mapping and width; reused by heights and rendering.
+---@type table<CheatsheetMeasure, table<CheatsheetDisplayMapping, table<string, string[]>>>
+local wrapped = setmetatable({}, { __mode = "k" })
+
+---@param groups CheatsheetDisplayGroup[]
+---@param range CheatsheetRange
+---@return CheatsheetDisplayGroup[]
+local function slice(groups, range)
+  local result = {}
+  for index = range.first, range.last do
+    result[#result + 1] = groups[index]
+  end
+  return result
+end
+
+---@param key_width integer
+---@param gap integer
+---@param width integer
+---@param wrap boolean
+---@return integer?
+local function description_width(key_width, gap, width, wrap)
+  return wrap and math.max(1, width - key_width - gap) or nil
+end
+
+---Preferred column width: the widest unwrapped line, capped by max_column_width but never
+---narrower than any group header or the key column with one description cell.
+---@param groups CheatsheetDisplayGroup[]
+---@param config CheatsheetConfig
+---@param measure CheatsheetMeasure
+---@return integer
+function M.column_target(groups, config, measure)
+  local gap = config.layout.key_gap
+  local headers, keys, natural = 0, 0, 0
+  for _, group in ipairs(groups) do
+    local key = M.key_width({ group }, measure)
+    headers = math.max(headers, measure(group.icon .. group.name))
+    keys = math.max(keys, key + gap + 1)
+    for _, mapping in ipairs(group.mappings) do
+      natural = math.max(natural, key + gap + measure(mapping.desc))
+    end
+  end
+  local lower = math.max(headers, keys)
+  return math.max(lower, math.min(math.max(natural, headers), config.layout.max_column_width))
+end
+
+---@param mapping CheatsheetDisplayMapping
+---@param desc_width? integer Wrap width for descriptions; nil keeps one line.
+---@param measure CheatsheetMeasure
+---@return string[]
+local function descriptions(mapping, desc_width, measure)
+  if not desc_width then
+    return { mapping.desc }
+  end
+  local by_mapping = wrapped[measure] or setmetatable({}, { __mode = "k" })
+  wrapped[measure] = by_mapping
+  local by_width = by_mapping[mapping] or {}
+  by_mapping[mapping] = by_width
+  local key = desc_width .. "\0" .. mapping.desc
+  by_width[key] = by_width[key] or text.wrap(mapping.desc, desc_width, measure)
+  return by_width[key]
+end
+
+---Clip lines wider than the column and their spans so composed columns stay aligned.
+---@param document CheatsheetDocument
+---@param width integer
+---@param measure CheatsheetMeasure
+---@return CheatsheetDocument
+function M.fit(document, width, measure)
+  ---@type CheatsheetDocument
+  local result = { lines = {}, spans = {} }
+  for index, line in ipairs(document.lines) do
+    result.lines[index] = measure(line) > width and text.clip(line, width, measure) or line
+  end
+  for _, item in ipairs(document.spans) do
+    local length = #result.lines[item.row + 1]
+    span(result, item.row, item.start_col, math.min(item.end_col, length), item.hl_group)
+  end
+  return result
+end
+
+---Lines of one mapping; continuation lines are indented under the description column.
+---@param mapping CheatsheetDisplayMapping
+---@param key_width integer
+---@param gap integer
+---@param desc_width? integer
+---@param measure CheatsheetMeasure
+---@return CheatsheetDocument
+function M.mapping_lines(mapping, key_width, gap, desc_width, measure)
+  ---@type CheatsheetDocument
+  local result = { lines = {}, spans = {} }
+  local parts = descriptions(mapping, desc_width, measure)
+  local line, start_col, end_col, desc_col =
+    M.mapping_line({ lhs = mapping.lhs, desc = parts[1] }, key_width, 0, measure, gap)
+  result.lines[1] = line
+  span(result, 0, start_col, end_col, "CheatsheetKey")
+  span(result, 0, desc_col, #line, "CheatsheetDesc")
+  local indent = string.rep(" ", key_width + gap)
+  for index = 2, #parts do
+    result.lines[index] = indent .. parts[index]
+    span(result, index - 1, #indent, #result.lines[index], "CheatsheetDesc")
+  end
+  return result
+end
+
+---One group in coordinates relative to its column.
+---@param group CheatsheetDisplayGroup
+---@param key_width integer
+---@param width integer Column width in cells.
+---@param config CheatsheetConfig
+---@param measure CheatsheetMeasure
+---@param desc_width? integer
+---@return CheatsheetDocument
+function M.block(group, key_width, width, config, measure, desc_width)
+  ---@type CheatsheetDocument
+  local head = { lines = {}, spans = {} }
+  local header = group.icon .. group.name
+  local offset = M.offset(config.group_align, width, measure(header), 0)
+  head.lines[1] = string.rep(" ", offset) .. header
+  span(head, 0, offset, offset + #group.icon, "CheatsheetGroupIcon")
+  span(head, 0, offset + #group.icon, offset + #header, "CheatsheetGroup")
+  if config.group_underline then
+    -- The box character is ambiguous-width; repeat it by cells rather than characters.
+    head.lines[2] = string.rep("─", math.floor(width / math.max(1, measure("─"))))
+    span(head, 1, 0, #head.lines[2], "CheatsheetSeparator")
+  else
+    head.lines[2] = ""
+  end
+  local rows = {}
+  for _, mapping in ipairs(group.mappings) do
+    rows[#rows + 1] = M.mapping_lines(mapping, key_width, config.layout.key_gap, desc_width, measure)
+  end
+  return columns.stack({ head, columns.stack(rows, config.layout.mapping_spacing) }, 0)
+end
+
+---Height of M.block without building its lines.
+---@param group CheatsheetDisplayGroup
+---@param config CheatsheetConfig
+---@param measure CheatsheetMeasure
+---@param desc_width? integer
+---@return integer
+function M.block_height(group, config, measure, desc_width)
+  local height = 2 + config.layout.mapping_spacing * math.max(0, #group.mappings - 1)
+  for _, mapping in ipairs(group.mappings) do
+    height = height + #descriptions(mapping, desc_width, measure)
+  end
+  return height
+end
+
+---Height of a column holding a range of groups with the range's own key width.
+---@param groups CheatsheetDisplayGroup[]
+---@param range CheatsheetRange
+---@param width integer
+---@param config CheatsheetConfig
+---@param measure CheatsheetMeasure
+---@param wrap boolean
+---@return integer
+function M.column_height(groups, range, width, config, measure, wrap)
+  local members = slice(groups, range)
+  local desc_width = description_width(M.key_width(members, measure), config.layout.key_gap, width, wrap)
+  local height = config.layout.group_spacing * (#members - 1)
+  for _, group in ipairs(members) do
+    height = height + M.block_height(group, config, measure, desc_width)
+  end
+  return height
+end
+
+---@param groups CheatsheetDisplayGroup[]
+---@param range CheatsheetRange
+---@param width integer
+---@param config CheatsheetConfig
+---@param measure CheatsheetMeasure
+---@param wrap boolean
+---@return CheatsheetDocument
+function M.column(groups, range, width, config, measure, wrap)
+  local members = slice(groups, range)
+  local key_width = M.key_width(members, measure)
+  local desc_width = description_width(key_width, config.layout.key_gap, width, wrap)
+  local blocks = {}
+  for _, group in ipairs(members) do
+    blocks[#blocks + 1] = M.block(group, key_width, width, config, measure, desc_width)
+  end
+  local document = columns.stack(blocks, config.layout.group_spacing)
+  return wrap and M.fit(document, width, measure) or document
+end
+
 ---Measure screen cells through an injected function, but emit byte offsets for extmarks.
 ---@param groups CheatsheetDisplayGroup[]
 ---@param mode CheatsheetMode
@@ -98,13 +285,13 @@ end
 function M.build(groups, mode, config, width, measure)
   ---@type CheatsheetDocument
   local result = { lines = {}, spans = {} }
-  local pad = config.window.padding
+  local pad, layout = config.window.padding, config.layout
   local content_width = math.max(1, width - pad.left - pad.right)
-  ---@param text string
+  ---@param line string
   ---@return integer
-  local function append(text)
+  local function append(line)
     local row = #result.lines
-    result.lines[#result.lines + 1] = text
+    result.lines[#result.lines + 1] = line
     return row
   end
   ---@param count integer
@@ -121,40 +308,31 @@ function M.build(groups, mode, config, width, measure)
   span(result, row, offset, offset + #label, "CheatsheetTitle")
   blanks(1)
 
+  local count = 1
   if #groups == 0 then
     local message = "No mappings for " .. modes.names[mode] .. " mode"
     row = append(string.rep(" ", pad.left) .. message)
     span(result, row, pad.left, pad.left + #message, "CheatsheetDesc")
-  end
-  local key_width = M.key_width(groups, measure)
-  for group_index, group in ipairs(groups) do
-    local header = group.icon .. group.name
-    offset = M.offset(config.group_align, content_width, measure(header), pad.left)
-    row = append(string.rep(" ", offset) .. header)
-    span(result, row, offset, offset + #group.icon, "CheatsheetGroupIcon")
-    span(result, row, offset + #group.icon, offset + #header, "CheatsheetGroup")
-    if config.group_underline then
-      local separator = string.rep("─", content_width)
-      row = append(string.rep(" ", pad.left) .. separator)
-      span(result, row, pad.left, pad.left + #separator, "CheatsheetSeparator")
-    else
-      blanks(1)
+  else
+    local limit = math.min(layout.max_columns, #groups)
+    count = columns.count(content_width, M.column_target(groups, config, measure), layout.column_gap, limit)
+    local column_width = columns.width(content_width, count, layout.column_gap)
+    local wrap = count > 1
+    local ranges = { { first = 1, last = #groups } }
+    if wrap then
+      ranges = columns.partition(#groups, count, function(first, last)
+        return M.column_height(groups, { first = first, last = last }, column_width, config, measure, wrap)
+      end)
     end
-    for index, mapping in ipairs(group.mappings) do
-      local line, start_col, end_col, desc_col =
-        M.mapping_line(mapping, key_width, pad.left, measure, config.layout.key_gap)
-      row = append(line)
-      span(result, row, start_col, end_col, "CheatsheetKey")
-      span(result, row, desc_col, #line, "CheatsheetDesc")
-      if index < #group.mappings then
-        blanks(config.layout.mapping_spacing)
-      end
+    local documents = {}
+    for _, range in ipairs(ranges) do
+      documents[#documents + 1] = M.column(groups, range, column_width, config, measure, wrap)
     end
-    if group_index < #groups then
-      blanks(config.layout.group_spacing)
-    end
+    result =
+      columns.stack({ result, columns.compose(documents, column_width, layout.column_gap, pad.left, measure) }, 0)
   end
   blanks(pad.bottom)
+  result.columns = count
   return result
 end
 
