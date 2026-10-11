@@ -500,6 +500,9 @@ done
 stylua --check .
 ```
 
+`stylua.toml` in the plugin root matches the host configuration, so `stylua --check .` verifies
+formatting from the plugin root as well as from the configuration root; `stylua .` applies it.
+
 You may also pass absolute paths to the test scripts from any working directory. Tests locate the
 plugin relative to their own files. Core tests clear the global `vim` while exercising it, including
 under Neovim. All runners exit nonzero on failure. The Neovim suites use real buffers/windows/tabs,

@@ -71,7 +71,7 @@ t.test("unrelated cheatsheet filetype cannot reset ownership", function()
   vim.bo[buf].bufhidden = "wipe"
   local win = api.nvim_open_win(buf, false, { relative = "editor", row = 0, col = 0, width = 10, height = 3 })
   api.nvim_win_close(win, true)
-  t.equal(vim.g.cheatsheet_displayed, true)
+  t.equal(plugin.is_open(), true)
   plugin.hide()
   assert(not api.nvim_win_is_valid(owned))
 end)

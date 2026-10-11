@@ -1,3 +1,4 @@
+local modes = require("cheatsheet.core.modes")
 local M = {}
 
 ---@param value string
@@ -18,7 +19,26 @@ local function matches_any(value, patterns)
   return false
 end
 
----Local mappings override global mappings before any display filters are applied.
+---@param char string
+---@return string
+local function swap_case(char)
+  local lower = char:lower()
+  return char == lower and char:upper() or lower
+end
+
+---Case-insensitive order; lowercase precedes uppercase when the text is otherwise equal.
+---@param a string
+---@param b string
+---@return boolean
+local function less(a, b)
+  local left, right = a:lower(), b:lower()
+  if left ~= right then
+    return left < right
+  end
+  return (a:gsub("%a", swap_case)) < (b:gsub("%a", swap_case))
+end
+
+---Local mappings override global mappings of the same mode before any display filters are applied.
 ---@param global CheatsheetRawMapping[]
 ---@param local_mappings CheatsheetRawMapping[]
 ---@param mode CheatsheetMode
@@ -28,7 +48,7 @@ function M.merge(global, local_mappings, mode)
   local by_lhs = {}
   for _, source in ipairs({ global, local_mappings }) do
     for _, mapping in ipairs(source) do
-      if type(mapping.lhs) == "string" and mapping.lhs ~= "" then
+      if type(mapping.lhs) == "string" and mapping.lhs ~= "" and modes.covers(mapping.mode, mode) then
         by_lhs[mapping.lhs] = { lhs = mapping.lhs, desc = mapping.desc or "", mode = mode }
       end
     end
@@ -43,10 +63,15 @@ function M.merge(global, local_mappings, mode)
   return result
 end
 
+---Included lhs patterns bypass every description and key filter.
 ---@param mapping CheatsheetDisplayMapping
----@param exclude CheatsheetExcludeConfig
+---@param config CheatsheetConfig
 ---@return boolean
-function M.accept(mapping, exclude)
+function M.accept(mapping, config)
+  if matches_any(mapping.lhs, config.include.patterns) then
+    return true
+  end
+  local exclude = config.exclude
   local desc = trim(mapping.desc)
   if (exclude.no_desc and desc == "") or (exclude.newline and mapping.desc:find("[\r\n]")) then
     return false
@@ -62,10 +87,11 @@ end
 ---@param leader string
 ---@return string
 function M.format_lhs(lhs, leader)
+  local prefix = ""
   if leader ~= "" and lhs:sub(1, #leader) == leader then
-    return "<leader> + " .. lhs:sub(#leader + 1)
+    prefix, lhs = "<leader> + ", lhs:sub(#leader + 1)
   end
-  return lhs
+  return prefix .. (lhs:gsub(" ", "<Space>"))
 end
 
 ---@param desc string
@@ -138,9 +164,9 @@ function M.sort(groups, config)
   for _, group in ipairs(result) do
     table.sort(group.mappings, function(a, b)
       if config.sort_keys == "desc" and a.desc ~= b.desc then
-        return a.desc < b.desc
+        return less(a.desc, b.desc)
       end
-      return a.lhs < b.lhs
+      return less(a.lhs, b.lhs)
     end)
   end
   return result
@@ -162,7 +188,7 @@ function M.build(global, local_mappings, config, context)
     excluded[name] = true
   end
   for _, mapping in ipairs(M.merge(global, local_mappings, context.mode)) do
-    if M.accept(mapping, config.exclude) then
+    if M.accept(mapping, config) then
       local desc = trim(mapping.desc)
       local name, icon, priority, prefix = M.select_group(desc, config)
       if not excluded[name] then

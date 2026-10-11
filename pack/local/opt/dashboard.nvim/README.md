@@ -250,6 +250,9 @@ done
 stylua --check .
 ```
 
+`stylua.toml` in the plugin root matches the host configuration, so `stylua --check .` verifies
+formatting from the plugin root as well as from the configuration root; `stylua .` applies it.
+
 Pure suites also run in Neovim with `vim` removed during execution. Native suites
 cover real keys, panels, splits, tabs, styles, lifecycle, callbacks and failures.
 Startup tests attach a real embedded UI and cover empty/file/directory startup,

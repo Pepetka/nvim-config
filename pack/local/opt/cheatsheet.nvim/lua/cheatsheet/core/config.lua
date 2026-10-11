@@ -136,6 +136,7 @@ local defaults = {
     newline = true,
     groups = {},
   },
+  include = { patterns = {} },
   icons = { enabled = true, default = "󰌌 " },
   sort_groups = {},
   sort_keys = "alphanum",
@@ -143,7 +144,7 @@ local defaults = {
   mode_align = "right",
   group_underline = true,
   layout = { key_gap = 4, mapping_spacing = 1, group_spacing = 2 },
-  mappings = { close = { "q" }, next_mode = "<tab>", prev_mode = "<S-Tab>" },
+  mappings = { close = { "q", "<Esc>" }, next_mode = "<tab>", prev_mode = "<S-Tab>" },
 }
 
 local align = enum({ "left", "center", "right" })
@@ -167,6 +168,7 @@ local schema = {
   end,
   default_group = { name = nonempty, icon = text },
   exclude = { no_desc = boolean, single_word = boolean, newline = boolean, groups = strings },
+  include = {},
   icons = { enabled = boolean, default = text },
   sort_groups = strings,
   sort_keys = enum({ "alphanum", "desc" }),
@@ -178,12 +180,30 @@ local schema = {
   open_mapping = nonempty,
 }
 
+-- Pattern lists are validated per entry outside the schema.
+---@type table<string, true>
+local lists = {
+  group_rules = true,
+  ["exclude.patterns"] = true,
+  ["exclude.desc_patterns"] = true,
+  ["include.patterns"] = true,
+}
+---@type table<string, true>
+local rule_fields = { pattern = true, group = true, icon = true, prefix = true }
+
 ---@param messages string[]
 ---@param path string
 ---@param action string
 ---@return nil
 local function warning(messages, path, action)
   messages[#messages + 1] = "cheatsheet: invalid " .. path .. ", " .. action
+end
+
+---@param messages string[]
+---@param path string
+---@return nil
+local function unknown(messages, path)
+  messages[#messages + 1] = "cheatsheet: unknown option " .. path .. ", ignoring"
 end
 
 ---@param input table<string, unknown>
@@ -193,6 +213,12 @@ end
 ---@param prefix string
 ---@return nil
 local function normalize_fields(input, output, fields, messages, prefix)
+  for key in pairs(input) do
+    local path = prefix .. tostring(key)
+    if fields[key] == nil and not lists[path] then
+      unknown(messages, path)
+    end
+  end
   for key, validator in pairs(fields) do
     local value = input[key]
     local path = prefix .. key
@@ -259,11 +285,25 @@ function M.normalize(opts)
   end
   normalize_fields(opts, result, schema, messages, "")
   result.group_rules = normalize_list(opts.group_rules, rule, messages, "group_rules", defaults.group_rules)
+  if type(opts.group_rules) == "table" then
+    for index, item in ipairs(opts.group_rules) do
+      if type(item) == "table" then
+        for key in pairs(item) do
+          if not rule_fields[key] then
+            unknown(messages, "group_rules[" .. index .. "]." .. tostring(key))
+          end
+        end
+      end
+    end
+  end
   local exclude = type(opts.exclude) == "table" and opts.exclude or {}
   result.exclude.patterns =
     normalize_list(exclude.patterns, pattern, messages, "exclude.patterns", defaults.exclude.patterns)
   result.exclude.desc_patterns =
     normalize_list(exclude.desc_patterns, pattern, messages, "exclude.desc_patterns", defaults.exclude.desc_patterns)
+  local include = type(opts.include) == "table" and opts.include or {}
+  result.include.patterns =
+    normalize_list(include.patterns, pattern, messages, "include.patterns", defaults.include.patterns)
   -- The fallback is resolved by the mappings layer; an explicit empty icon is meaningful.
   table.sort(messages)
   return result, messages

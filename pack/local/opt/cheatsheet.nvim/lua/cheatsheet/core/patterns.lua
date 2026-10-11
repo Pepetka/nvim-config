@@ -59,6 +59,7 @@ function M.valid(pattern)
           return false
         end
         index = ending
+      -- Lua accepts back-references to position captures, but they can never match.
       elseif escaped:match("%d") and captures[tonumber(escaped)] ~= "closed" then
         return false
       end

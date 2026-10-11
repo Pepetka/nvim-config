@@ -38,6 +38,9 @@
 ---@field newline boolean
 ---@field groups string[]
 
+---@class CheatsheetIncludeConfig
+---@field patterns string[] Lua patterns for lhs values that bypass description and key filters.
+
 ---@class CheatsheetIconsConfig
 ---@field enabled boolean
 ---@field default string
@@ -58,6 +61,7 @@
 ---@field group_rules CheatsheetGroupRule[]
 ---@field default_group CheatsheetDefaultGroup
 ---@field exclude CheatsheetExcludeConfig
+---@field include CheatsheetIncludeConfig
 ---@field icons CheatsheetIconsConfig
 ---@field sort_groups string[]
 ---@field sort_keys CheatsheetSortKey
@@ -74,6 +78,7 @@
 ---@field group_rules? CheatsheetGroupRule[]
 ---@field default_group? { name?: string, icon?: string }
 ---@field exclude? CheatsheetExcludeConfigPartial
+---@field include? { patterns?: string[] }
 ---@field icons? { enabled?: boolean, default?: string }
 ---@field sort_groups? string[]
 ---@field sort_keys? CheatsheetSortKey
@@ -104,6 +109,7 @@
 ---@class CheatsheetRawMapping
 ---@field lhs? string
 ---@field desc? string
+---@field mode? string Raw keymap mode, such as " " for :map, "x" for :xmap or "nox" after :sunmap.
 
 ---@class CheatsheetMappingContext
 ---@field mode CheatsheetMode
@@ -172,6 +178,7 @@
 
 ---@class CheatsheetCallbacks
 ---@field toggle CheatsheetAction
+---@field show fun(mode?: CheatsheetMode): nil
 ---@field resize CheatsheetAction
 ---@field closed fun(kind: CheatsheetResourceKind, id: integer): nil
 
@@ -182,6 +189,7 @@
 ---@field measure CheatsheetMeasure
 ---@field collect fun(mode: CheatsheetMode, source_buf: integer): CheatsheetRawMapping[], CheatsheetRawMapping[]
 ---@field valid fun(session: CheatsheetSession): boolean
+---@field visible fun(session: CheatsheetSession): boolean Valid and on the current tab page.
 ---@field exists fun(session: CheatsheetSession): boolean
 ---@field create fun(
 ---  options: CheatsheetConfig,
@@ -198,7 +206,6 @@
 ---): nil
 ---@field close fun(session: CheatsheetSession): nil
 ---@field install fun(config: CheatsheetConfig, callbacks: CheatsheetCallbacks): nil
----@field displayed fun(value: boolean): nil
 ---@field notify fun(message: string, level: CheatsheetLogLevel): nil
 
 ---@class CheatsheetAPI
@@ -208,6 +215,7 @@
 ---@field toggle CheatsheetAction
 ---@field next_mode CheatsheetAction
 ---@field prev_mode CheatsheetAction
+---@field is_open fun(): boolean
 
 ---@class CheatsheetController: CheatsheetAPI
 ---@field resize CheatsheetAction

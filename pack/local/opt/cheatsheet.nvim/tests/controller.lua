@@ -11,19 +11,23 @@ _G.vim = nil
 ---@return CheatsheetController, CheatsheetTestState
 local function fixture(options, skip_setup)
   ---@type CheatsheetTestState
-  local state =
-    { created = 0, closed = 0, updates = 0, installed = 0, messages = {}, columns = 120, lines = 40, current_buf = 10 }
+  local state = {
+    created = 0,
+    closed = 0,
+    updates = 0,
+    installed = 0,
+    messages = {},
+    columns = 120,
+    lines = 40,
+    current_buf = 10,
+    tab = 1,
+  }
   local adapter = {}
   ---@param message string
   ---@param level CheatsheetLogLevel
   ---@return nil
   function adapter.notify(message, level)
     state.messages[#state.messages + 1] = { message = message, level = level }
-  end
-  ---@param value boolean
-  ---@return nil
-  function adapter.displayed(value)
-    state.displayed = value
   end
   ---@param config CheatsheetConfig
   ---@param callbacks CheatsheetCallbacks
@@ -63,6 +67,12 @@ local function fixture(options, skip_setup)
   end
   ---@param session CheatsheetSession
   ---@return boolean
+  function adapter.visible(session)
+    ---@cast session CheatsheetTestSession
+    return adapter.valid(session) and session.tab == state.tab
+  end
+  ---@param session CheatsheetSession
+  ---@return boolean
   function adapter.exists(session)
     ---@cast session CheatsheetTestSession
     return session.alive and (session.win ~= nil or session.buf ~= nil)
@@ -96,6 +106,7 @@ local function fixture(options, skip_setup)
       source_buf = source_buf,
       source_win = source_win,
       alive = true,
+      tab = state.tab,
       options = config,
     }
     state.current_buf = assert(state.session).buf
@@ -158,15 +169,49 @@ t.test("all public opening operations require setup; hide and resize are safe", 
   instance.resize()
   t.equal(state.created, 0)
   t.equal(#state.messages, 4)
-  t.equal(state.displayed, false)
+  t.equal(instance.is_open(), false)
 end)
 
-t.test("setup validates once and subsequent setup keeps the original config", function()
+t.test("setup validates options and repeated setup closes the session and reconfigures", function()
   local instance, state = fixture({ modes = {} })
   t.equal(assert(state.options).modes, { "n", "i", "v", "o", "t" })
+  t.equal(state.messages[#state.messages].level, "WARN")
+  local warnings = #state.messages
+  instance.show("v")
+  instance.setup({ modes = { "i" } })
+  t.equal(#state.messages, warnings)
+  t.equal(state.installed, 2)
+  t.equal(state.closed, 1)
+  t.equal(instance.is_open(), false)
+  t.equal(assert(state.options).modes, { "i" })
+  t.equal(assert(state.callbacks).show, instance.show)
+  instance.show()
+  t.equal(state.collected_mode, "i")
+end)
+
+t.test("failed reconfiguration leaves the controller uninitialized until setup succeeds", function()
+  local instance, state = fixture()
+  state.fail_install = true
+  instance.setup({ modes = { "i" } })
+  t.equal(state.messages[#state.messages].level, "ERROR")
+  instance.show()
+  t.equal(state.created, 0)
+  state.fail_install = false
+  instance.setup({ modes = { "i" } })
+  instance.show()
+  t.equal(state.collected_mode, "i")
+end)
+
+t.test("reconfiguration is cancelled while a failed closure retains the session", function()
+  local instance, state = fixture()
+  instance.show()
+  state.fail_close = true
   instance.setup({ modes = { "i" } })
   t.equal(state.installed, 1)
-  t.equal(state.messages[#state.messages].level, "WARN")
+  t.equal(instance.is_open(), true)
+  state.fail_close = false
+  instance.setup({ modes = { "i" } })
+  t.equal(state.installed, 2)
 end)
 
 t.test("failed installation reports an error and permits a clean retry", function()
@@ -178,7 +223,7 @@ t.test("failed installation reports an error and permits a clean retry", functio
   instance.setup()
   instance.show()
   t.equal(state.installed, 1)
-  t.equal(state.displayed, true)
+  t.equal(instance.is_open(), true)
 end)
 
 t.test("source context is captured once and reused across show and mode changes", function()
@@ -191,7 +236,7 @@ t.test("source context is captured once and reused across show and mode changes"
   t.equal(state.created, 1)
   t.equal(state.updates, 3)
   t.equal(assert(state.session).source_buf, 10)
-  t.equal(state.displayed, true)
+  t.equal(instance.is_open(), true)
   t.equal(state.reset, true)
 end)
 
@@ -243,20 +288,29 @@ t.test("hide is idempotent and reopening resets to the first mode", function()
   instance.hide()
   instance.hide()
   t.equal(state.closed, 1)
-  t.equal(state.displayed, false)
+  t.equal(instance.is_open(), false)
   instance.show()
   contains(state, "Local n")
   t.equal(state.created, 2)
 end)
 
-t.test("toggle uses owned resources, not a mutable displayed flag", function()
+t.test("toggle and show move a session with its mode from another tab page", function()
   local instance, state = fixture()
-  state.displayed = true
   instance.toggle()
-  t.equal(state.created, 1)
-  state.displayed = false
+  instance.next_mode()
+  state.tab, state.current_buf = 2, 10
   instance.toggle()
   t.equal(state.closed, 1)
+  t.equal(state.created, 2)
+  t.equal(assert(state.session).tab, 2)
+  t.equal(instance.is_open(), true)
+  contains(state, "Local i")
+  state.tab, state.current_buf = 1, 10
+  instance.show("n")
+  t.equal(state.created, 3)
+  contains(state, "Local n")
+  instance.toggle()
+  t.equal(instance.is_open(), false)
 end)
 
 t.test("foreign closure is ignored; own closure disposes the counterpart", function()
@@ -268,7 +322,7 @@ t.test("foreign closure is ignored; own closure disposes the counterpart", funct
   instance.closed("win", assert(state.session).win)
   t.equal(state.closed, 1)
   t.equal(assert(state.session).win, nil)
-  t.equal(state.displayed, false)
+  t.equal(instance.is_open(), false)
   instance.show()
   instance.closed("buf", assert(state.session).buf)
   t.equal(state.closed, 2)
@@ -301,7 +355,7 @@ t.test("invalid owned resources are cleaned on resize or reopening", function()
   assert(state.session).alive = false
   instance.resize()
   t.equal(state.closed, 1)
-  t.equal(state.displayed, false)
+  t.equal(instance.is_open(), false)
   instance.show()
   assert(state.session).alive = false
   instance.show()
@@ -316,12 +370,12 @@ for _, failure in ipairs(opening_failures) do
     local instance, state = fixture()
     state[failure] = true
     instance.show()
-    t.equal(state.displayed, false)
+    t.equal(instance.is_open(), false)
     t.equal(state.closed, (failure == "fail_create" or failure == "fail_viewport") and 0 or 1)
     t.equal(state.messages[#state.messages].level, "ERROR")
     state[failure] = false
     instance.show()
-    t.equal(state.displayed, true)
+    t.equal(instance.is_open(), true)
   end)
 end
 
@@ -333,7 +387,7 @@ t.test("redraw failures dispose the session and are reported", function()
     instance.show()
     state.columns, state[failure] = 100, true
     instance.resize()
-    t.equal(state.displayed, false)
+    t.equal(instance.is_open(), false)
     t.equal(state.closed, 1)
     t.equal(state.messages[#state.messages].level, "ERROR")
   end
@@ -344,12 +398,12 @@ t.test("failed closure retains a live session, its mode and a retry path", funct
   instance.show("i")
   state.fail_close = true
   instance.hide()
-  t.equal(state.displayed, true)
+  t.equal(instance.is_open(), true)
   instance.next_mode()
   contains(state, "Local n")
   state.fail_close = false
   instance.hide()
-  t.equal(state.displayed, false)
+  t.equal(instance.is_open(), false)
 end)
 
 t.test("partial cleanup failure retains remaining resources without rendering a broken session", function()
@@ -358,7 +412,7 @@ t.test("partial cleanup failure retains remaining resources without rendering a 
   assert(state.session).buf = nil
   state.fail_close = true
   instance.hide()
-  t.equal(state.displayed, false)
+  t.equal(instance.is_open(), false)
   instance.show()
   instance.toggle()
   t.equal(state.created, 1)
@@ -376,11 +430,11 @@ t.test("partial creation transfers ownership even when its initial cleanup fails
   instance.show()
   t.equal(state.created, 1)
   t.equal(state.updates, 0)
-  t.equal(state.displayed, true)
+  t.equal(instance.is_open(), true)
   state.fail_close = false
   instance.hide()
   t.equal(state.closed, 1)
-  t.equal(state.displayed, false)
+  t.equal(instance.is_open(), false)
 end)
 
 t.test("reentrant render and resize requests do not recurse", function()
@@ -401,7 +455,7 @@ t.test("controller instances own independent configuration and sessions", functi
   t.equal(a.collected_mode, "n")
   t.equal(b.collected_mode, "i")
   first.hide()
-  t.equal(b.displayed, true)
+  t.equal(second.is_open(), true)
 end)
 
 local ok, err = pcall(t.run, "cheatsheet controller (without vim)")

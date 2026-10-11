@@ -8,6 +8,7 @@ local api = {
   toggle = controller.toggle,
   next_mode = controller.next_mode,
   prev_mode = controller.prev_mode,
+  is_open = controller.is_open,
 }
 
 return api

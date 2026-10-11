@@ -1,5 +1,6 @@
 ---@class CheatsheetTestSession: CheatsheetSession
 ---@field alive boolean
+---@field tab integer
 
 ---@alias CheatsheetTestFailure "fail_create" | "fail_collect" | "fail_update" | "fail_viewport"
 
@@ -12,7 +13,7 @@
 ---@field columns integer
 ---@field lines integer
 ---@field current_buf integer
----@field displayed? boolean
+---@field tab integer
 ---@field options? CheatsheetConfig
 ---@field callbacks? CheatsheetCallbacks
 ---@field session? CheatsheetTestSession

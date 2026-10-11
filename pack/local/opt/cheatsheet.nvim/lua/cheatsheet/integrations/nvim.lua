@@ -6,7 +6,7 @@ local highlights = {
   CheatsheetGroup = "Title",
   CheatsheetGroupIcon = "Constant",
   CheatsheetKey = "Special",
-  CheatsheetDesc = "Normal",
+  CheatsheetDesc = "NormalFloat",
   CheatsheetSeparator = "WinSeparator",
 }
 
@@ -15,6 +15,8 @@ function M.new()
   local api = vim.api
   ---@type integer?
   local namespace
+  ---@type { group?: integer, command?: boolean, mapping?: string, callback?: CheatsheetAction }
+  local installed = {}
   local adapter = {}
 
   ---@param message string
@@ -22,12 +24,6 @@ function M.new()
   ---@return nil
   function adapter.notify(message, level)
     vim.notify(message, vim.log.levels[level])
-  end
-
-  ---@param value boolean
-  ---@return nil
-  function adapter.displayed(value)
-    vim.g.cheatsheet_displayed = value
   end
 
   ---@return integer source_buf, integer source_win
@@ -58,6 +54,12 @@ function M.new()
       and api.nvim_win_is_valid(session.win)
       and session.buf ~= nil
       and api.nvim_buf_is_valid(session.buf)
+  end
+
+  ---@param session CheatsheetSession
+  ---@return boolean
+  function adapter.visible(session)
+    return adapter.valid(session) and api.nvim_win_get_tabpage(assert(session.win)) == api.nvim_get_current_tabpage()
   end
 
   ---@param session CheatsheetSession
@@ -209,21 +211,37 @@ function M.new()
     end
   end
 
+  ---Remove the previous installation; an opening key remapped by the host is kept.
+  ---@return nil
+  local function uninstall()
+    if installed.group then
+      pcall(api.nvim_del_augroup_by_id, installed.group)
+    end
+    if installed.command then
+      pcall(api.nvim_del_user_command, "Cheatsheet")
+    end
+    if installed.mapping and vim.fn.maparg(installed.mapping, "n", false, true).callback == installed.callback then
+      pcall(vim.keymap.del, "n", installed.mapping)
+    end
+    installed = {}
+  end
+
   ---@param options CheatsheetConfig
   ---@param callbacks CheatsheetCallbacks
   ---@return nil
   function adapter.install(options, callbacks)
-    local group, command_created
+    uninstall()
     local ok, err = pcall(function()
       namespace = api.nvim_create_namespace("cheatsheet")
       ---@return nil
       local function set_highlights()
         for name, link in pairs(highlights) do
-          api.nvim_set_hl(0, name, { link = link })
+          api.nvim_set_hl(0, name, { link = link, default = true })
         end
       end
       set_highlights()
-      group = api.nvim_create_augroup("Cheatsheet", { clear = true })
+      local group = api.nvim_create_augroup("Cheatsheet", { clear = true })
+      installed.group = group
       api.nvim_create_autocmd("ColorScheme", { group = group, callback = set_highlights })
       api.nvim_create_autocmd("WinClosed", {
         group = group,
@@ -254,19 +272,29 @@ function M.new()
           end)
         end,
       })
-      api.nvim_create_user_command("Cheatsheet", callbacks.toggle, { desc = "Toggle cheatsheet window" })
-      command_created = true
+      api.nvim_create_user_command("Cheatsheet", function(args)
+        if args.args == "" then
+          callbacks.toggle()
+        else
+          callbacks.show(args.args --[[@as CheatsheetMode]])
+        end
+      end, {
+        desc = "Toggle cheatsheet window or show a mode",
+        nargs = "?",
+        complete = function(lead)
+          return vim.tbl_filter(function(mode)
+            return vim.startswith(mode, lead)
+          end, options.modes)
+        end,
+      })
+      installed.command = true
       if options.open_mapping then
         vim.keymap.set("n", options.open_mapping, callbacks.toggle, { desc = "Cheatsheet: Toggle", silent = true })
+        installed.mapping, installed.callback = options.open_mapping, callbacks.toggle
       end
     end)
     if not ok then
-      if group then
-        pcall(api.nvim_del_augroup_by_id, group)
-      end
-      if command_created then
-        pcall(api.nvim_del_user_command, "Cheatsheet")
-      end
+      uninstall()
       error(err, 0)
     end
   end

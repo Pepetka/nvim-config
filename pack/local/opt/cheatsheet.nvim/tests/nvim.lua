@@ -66,20 +66,29 @@ end
 t.test("setup is required, registers the command once and keeps host mappings outside the plugin", function()
   plugin.show()
   t.equal(notifications[1].level, vim.log.levels.ERROR)
-  plugin.setup({
+  ---@type CheatsheetConfigPartial
+  local options = {
     modes = { "n", "i" },
     group_rules = { { pattern = "^Test:", group = "tests", icon = "" } },
     sort_groups = { "tests" },
     exclude = { single_word = false },
-    mappings = { close = { "q", "<Esc>" } },
-  })
+  }
+  plugin.setup(options)
   assert(not package.loaded["utils.map_opts"], "plugin must not load host helpers")
   t.equal(vim.fn.exists(":Cheatsheet"), 2)
   t.equal(vim.fn.maparg("<leader>ch", "n"), "")
   local count = #api.nvim_get_autocmds({ group = "Cheatsheet" })
+  plugin.show()
+  local win = api.nvim_get_current_win()
   plugin.setup({ modes = { "t" } })
+  assert(not api.nvim_win_is_valid(win), "reconfiguration must close the open browser")
   t.equal(#api.nvim_get_autocmds({ group = "Cheatsheet" }), count)
-  t.equal(notifications[#notifications].level, vim.log.levels.WARN)
+  t.equal(vim.fn.exists(":Cheatsheet"), 2)
+  t.equal(#notifications, 1)
+  plugin.show()
+  contains("[terminal]")
+  plugin.hide()
+  plugin.setup(options)
   vim.keymap.set("n", "<leader>zz", function() end, { desc = "Test: Global action" })
   vim.keymap.set("i", "<leader>zz", function() end, { desc = "Test: Global insert" })
 end)
@@ -114,10 +123,10 @@ test("repeated show reuses its resources; mode mappings retain source context", 
   t.equal(float(), win)
   t.equal(api.nvim_get_current_buf(), buf)
   press("<Tab>")
-  contains("[i]")
+  contains("[insert]")
   contains("Local insert")
   press("<S-Tab>")
-  contains("[n]")
+  contains("[normal]")
   contains("Local action")
   t.equal(api.nvim_get_current_buf(), buf)
 end)
@@ -132,7 +141,7 @@ test("buffer-local mappings have descriptions and both close keys work", functio
     press(close)
     assert(not api.nvim_win_is_valid(win))
     assert(not api.nvim_buf_is_valid(buf))
-    t.equal(vim.g.cheatsheet_displayed, false)
+    t.equal(plugin.is_open(), false)
   end
 end)
 
@@ -165,23 +174,28 @@ test("Unicode extmarks use valid byte ranges and an empty icon leaves the name c
   assert(named_group)
 end)
 
-test("ColorScheme restores all owned highlight links", function()
+test("ColorScheme restores cleared highlight links and keeps host definitions", function()
   plugin.show()
   local expected = {
     CheatsheetTitle = "FloatTitle",
     CheatsheetGroup = "Title",
     CheatsheetGroupIcon = "Constant",
     CheatsheetKey = "Special",
-    CheatsheetDesc = "Normal",
+    CheatsheetDesc = "NormalFloat",
     CheatsheetSeparator = "WinSeparator",
   }
-  for name in pairs(expected) do
-    api.nvim_set_hl(0, name, {})
-  end
+  vim.cmd.highlight("clear")
   api.nvim_exec_autocmds("ColorScheme", { pattern = "test" })
   for name, link in pairs(expected) do
     t.equal(api.nvim_get_hl(0, { name = name }).link, link)
   end
+  api.nvim_set_hl(0, "CheatsheetKey", { fg = "#ff0000" })
+  api.nvim_set_hl(0, "CheatsheetDesc", { link = "Comment" })
+  api.nvim_exec_autocmds("ColorScheme", { pattern = "test" })
+  t.equal(api.nvim_get_hl(0, { name = "CheatsheetKey" }).fg, 0xff0000)
+  t.equal(api.nvim_get_hl(0, { name = "CheatsheetDesc" }).link, "Comment")
+  vim.cmd.highlight("clear")
+  api.nvim_exec_autocmds("ColorScheme", { pattern = "test" })
 end)
 
 test("resize preserves IDs, mode, cursor and view", function()
@@ -205,7 +219,7 @@ test("resize preserves IDs, mode, cursor and view", function()
   t.equal(after.lnum, before.lnum)
   t.equal(after.topline, before.topline)
   t.equal(after.leftcol, before.leftcol)
-  contains("[i]", buf)
+  contains("[insert]", buf)
   contains("Local insert", buf)
 end)
 
@@ -238,10 +252,10 @@ test("external window closure releases the buffer and permits reopening", functi
   plugin.show("i")
   local win, buf = float()
   api.nvim_win_close(win, true)
-  t.equal(vim.g.cheatsheet_displayed, false)
+  t.equal(plugin.is_open(), false)
   assert(not api.nvim_buf_is_valid(buf))
   plugin.toggle()
-  contains("[n]")
+  contains("[normal]")
   contains("Local action")
 end)
 
@@ -251,7 +265,7 @@ test("external buffer wipe closes its owned window", function()
   api.nvim_buf_delete(buf, { force = true })
   assert(not api.nvim_win_is_valid(win))
   assert(not api.nvim_buf_is_valid(buf))
-  t.equal(vim.g.cheatsheet_displayed, false)
+  t.equal(plugin.is_open(), false)
 end)
 
 test("unrelated window and buffer removal cannot disturb the browser", function()
@@ -263,7 +277,7 @@ test("unrelated window and buffer removal cannot disturb the browser", function(
   local foreign_win =
     api.nvim_open_win(foreign_buf, false, { relative = "editor", row = 0, col = 0, width = 10, height = 3 })
   api.nvim_win_close(foreign_win, true)
-  t.equal(vim.g.cheatsheet_displayed, true)
+  t.equal(plugin.is_open(), true)
   assert(api.nvim_win_is_valid(own_win) and api.nvim_buf_is_valid(own_buf))
 end)
 
@@ -293,13 +307,58 @@ test("closing the source window still permits clean browser closure", function()
   t.equal(api.nvim_get_current_win(), base_win)
 end)
 
-test("mutating the compatibility flag cannot break ownership or toggle", function()
-  vim.g.cheatsheet_displayed = true
+test("toggle on another tab page moves the browser there in one press", function()
   plugin.toggle()
+  local first_win = api.nvim_get_current_win()
+  vim.cmd("wincmd p")
+  vim.cmd.tabnew()
+  local tab = api.nvim_get_current_tabpage()
+  plugin.toggle()
+  assert(not api.nvim_win_is_valid(first_win), "the hidden browser must be closed")
   local win = api.nvim_get_current_win()
-  vim.g.cheatsheet_displayed = false
+  t.equal(api.nvim_win_get_tabpage(win), tab)
+  t.equal(api.nvim_win_get_config(win).relative, "editor")
+  t.equal(plugin.is_open(), true)
   plugin.toggle()
-  assert(not api.nvim_win_is_valid(win))
+  t.equal(plugin.is_open(), false)
+  vim.cmd.tabclose()
+end)
+
+test("command accepts a mode argument and completes configured modes", function()
+  vim.cmd.Cheatsheet("i")
+  contains("[insert]")
+  contains("Local insert")
+  vim.cmd.Cheatsheet("n")
+  contains("[normal]")
+  t.equal(vim.fn.getcompletion("Cheatsheet ", "cmdline"), { "n", "i" })
+  t.equal(vim.fn.getcompletion("Cheatsheet i", "cmdline"), { "i" })
+  vim.cmd.Cheatsheet()
+  t.equal(plugin.is_open(), false)
+end)
+
+test("visual mode hides select-only mappings and keeps visual ones with the same key", function(source)
+  plugin.setup({
+    modes = { "n", "v" },
+    group_rules = { { pattern = "^Test:", group = "tests", icon = "" } },
+    exclude = { single_word = false },
+  })
+  vim.keymap.set("x", "zv", function() end, { buffer = source, desc = "Test: Visual only" })
+  vim.keymap.set("s", "zv", function() end, { buffer = source, desc = "Test: Select only" })
+  vim.keymap.set("s", "zs", function() end, { buffer = source, desc = "Test: Select key" })
+  local ok, err = pcall(function()
+    plugin.show("v")
+    contains("Visual only")
+    assert(not text():find("Select only", 1, true))
+    assert(not text():find("Select key", 1, true))
+    contains("[visual]")
+  end)
+  plugin.setup({
+    modes = { "n", "i" },
+    group_rules = { { pattern = "^Test:", group = "tests", icon = "" } },
+    sort_groups = { "tests" },
+    exclude = { single_word = false },
+  })
+  assert(ok, err)
 end)
 
 test("queued resize callbacks cannot reopen a closed session", function()
@@ -310,7 +369,7 @@ test("queued resize callbacks cannot reopen a closed session", function()
   vim.wait(30, function()
     return false
   end)
-  t.equal(vim.g.cheatsheet_displayed, false)
+  t.equal(plugin.is_open(), false)
   for _, buf in ipairs(api.nvim_list_bufs()) do
     assert(vim.bo[buf].filetype ~= "cheatsheet")
   end

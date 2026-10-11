@@ -198,6 +198,15 @@ set `LUA_LS` to override it):
 nvim --clean --headless -i NONE -l tests/types_check.lua
 ```
 
+Check Lua formatting:
+
+```sh
+stylua --check .
+```
+
+`stylua.toml` in the plugin root matches the host configuration, so `stylua --check .` verifies
+formatting from the plugin root as well as from the configuration root; `stylua .` applies it.
+
 Check all helper sources and Node tests with strict TypeScript `checkJs`. Development dependencies stay
 outside the production helper runtime:
 

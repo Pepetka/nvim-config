@@ -35,18 +35,21 @@ function M.new(adapter)
     return true
   end
 
+  ---@return boolean
+  function controller.is_open()
+    return session ~= nil and adapter.valid(session)
+  end
+
   ---@return nil
   function controller.hide()
     local previous, previous_mode, previous_geometry = session, mode, geometry
     session, geometry = nil, nil
     mode = options and options.modes[1] or nil
-    adapter.displayed(false)
     if previous then
       local ok, err = pcall(adapter.close, previous)
       if not ok then
         if adapter.exists(previous) then
           session, mode, geometry = previous, previous_mode, previous_geometry
-          adapter.displayed(adapter.valid(previous))
         end
         report(err)
       end
@@ -81,7 +84,8 @@ function M.new(adapter)
       report("mode must be one of the configured modes")
       return
     end
-    if session and not adapter.valid(session) then
+    -- A session on another tab page is moved to the current one.
+    if session and not adapter.visible(session) then
       controller.hide()
       if session then
         return
@@ -104,7 +108,6 @@ function M.new(adapter)
         end
       end
       render(true, size)
-      adapter.displayed(true)
     end)
     updating = false
     if not ok then
@@ -115,7 +118,7 @@ function M.new(adapter)
 
   ---@return nil
   function controller.toggle()
-    if session and adapter.valid(session) then
+    if session and adapter.visible(session) then
       controller.hide()
     else
       controller.show()
@@ -181,31 +184,32 @@ function M.new(adapter)
     end
   end
 
+  ---Repeated setup closes the open session and replaces the configuration.
   ---@param opts? CheatsheetConfigPartial
   ---@return nil
   function controller.setup(opts)
-    if initialized then
-      adapter.notify("cheatsheet: already initialized", "WARN")
-      return
-    end
-    local diagnostics
-    options, diagnostics = config.normalize(opts)
+    local normalized, diagnostics = config.normalize(opts)
     for _, message in ipairs(diagnostics) do
       adapter.notify(message, "WARN")
     end
-    mode = options.modes[1]
-    local ok, err = pcall(adapter.install, options, {
+    if session then
+      controller.hide()
+      if session then
+        return
+      end
+    end
+    local ok, err = pcall(adapter.install, normalized, {
       toggle = controller.toggle,
+      show = controller.show,
       resize = controller.resize,
       closed = controller.closed,
     })
     if not ok then
-      options, mode = nil, nil
+      initialized, options, mode = false, nil, nil
       report(err)
       return
     end
-    adapter.displayed(false)
-    initialized = true
+    initialized, options, mode = true, normalized, normalized.modes[1]
   end
 
   return controller

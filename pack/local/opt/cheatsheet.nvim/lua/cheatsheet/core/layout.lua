@@ -1,3 +1,4 @@
+local modes = require("cheatsheet.core.modes")
 local M = {}
 
 ---The float's dimensions include only its content; reserve cells for its border.
@@ -37,13 +38,14 @@ function M.offset(align, width, text_width, padding)
   return padding
 end
 
----@param modes CheatsheetMode[]
+---@param configured CheatsheetMode[]
 ---@param current CheatsheetMode
 ---@return string
-function M.mode_label(modes, current)
+function M.mode_label(configured, current)
   local parts = {}
-  for _, mode in ipairs(modes) do
-    parts[#parts + 1] = mode == current and "[" .. mode .. "] " or " " .. mode .. "  "
+  for _, mode in ipairs(configured) do
+    local name = modes.names[mode]
+    parts[#parts + 1] = mode == current and "[" .. name .. "] " or " " .. name .. "  "
   end
   return table.concat(parts)
 end
@@ -120,7 +122,7 @@ function M.build(groups, mode, config, width, measure)
   blanks(1)
 
   if #groups == 0 then
-    local message = "No mappings for " .. mode .. " mode"
+    local message = "No mappings for " .. modes.names[mode] .. " mode"
     row = append(string.rep(" ", pad.left) .. message)
     span(result, row, pad.left, pad.left + #message, "CheatsheetDesc")
   end

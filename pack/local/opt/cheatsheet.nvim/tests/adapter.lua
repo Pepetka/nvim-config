@@ -8,6 +8,7 @@ local integration = require("cheatsheet.integrations.nvim")
 local controller = require("cheatsheet.controller")
 local config = require("cheatsheet.core.config")
 local layout = require("cheatsheet.core.layout")
+local modes = require("cheatsheet.core.modes")
 local t = require("support")
 local source_win = api.nvim_get_current_win()
 local original_notify = vim.notify
@@ -57,10 +58,23 @@ t.test("opening-key installation is optional and keeps a useful description", fu
   local map = vim.fn.maparg("<F12>", "n", false, true)
   t.equal(map.desc, "Cheatsheet: Toggle")
   map.callback()
-  t.equal(vim.g.cheatsheet_displayed, true)
+  t.equal(instance.is_open(), true)
   map.callback()
-  t.equal(vim.g.cheatsheet_displayed, false)
+  t.equal(instance.is_open(), false)
   vim.keymap.del("n", "<F12>")
+end)
+
+t.test("reconfiguration replaces its opening key and keeps a key remapped by the host", function()
+  local instance = fixture({ open_mapping = "<F12>" })
+  instance.setup({ open_mapping = "<F11>" })
+  t.equal(vim.fn.maparg("<F12>", "n"), "")
+  t.equal(vim.fn.maparg("<F11>", "n", false, true).desc, "Cheatsheet: Toggle")
+  local host = function() end
+  vim.keymap.set("n", "<F11>", host, { desc = "Host action" })
+  instance.setup()
+  t.equal(vim.fn.maparg("<F11>", "n", false, true).callback, host)
+  t.equal(vim.fn.exists(":Cheatsheet"), 2)
+  vim.keymap.del("n", "<F11>")
 end)
 
 t.test("installation failure removes partial registrations and permits retry", function()
@@ -75,7 +89,7 @@ t.test("installation failure removes partial registrations and permits retry", f
   instance.setup({ open_mapping = "<F12>" })
   t.equal(vim.fn.exists(":Cheatsheet"), 2)
   instance.show()
-  t.equal(vim.g.cheatsheet_displayed, true)
+  t.equal(instance.is_open(), true)
   instance.hide()
   vim.keymap.del("n", "<F12>")
 end)
@@ -84,7 +98,7 @@ t.test("all declared border styles open and close, including titleless none", fu
   for _, border in ipairs({ "none", "shadow", "single", "double", "rounded", "solid" }) do
     local instance = fixture({ window = { border = border } })
     instance.show()
-    t.equal(vim.g.cheatsheet_displayed, true, border)
+    t.equal(instance.is_open(), true, border)
     local win, buf = api.nvim_get_current_win(), api.nvim_get_current_buf()
     instance.hide()
     assert(not api.nvim_win_is_valid(win) and not api.nvim_buf_is_valid(buf))
@@ -128,10 +142,10 @@ t.test("failed window creation wipes the already-created buffer", function()
   end, instance.show)
   t.equal(#api.nvim_list_bufs(), before)
   t.equal(scratch_count(), 0)
-  t.equal(vim.g.cheatsheet_displayed, false)
+  t.equal(instance.is_open(), false)
   t.equal(notifications[#notifications].level, vim.log.levels.ERROR)
   instance.show()
-  t.equal(vim.g.cheatsheet_displayed, true)
+  t.equal(instance.is_open(), true)
   instance.hide()
 end)
 
@@ -146,7 +160,7 @@ t.test("failed buffer configuration also cleans its partial allocation", functio
     return original(name, value, opts)
   end, instance.show)
   t.equal(#api.nvim_list_bufs(), before)
-  t.equal(vim.g.cheatsheet_displayed, false)
+  t.equal(instance.is_open(), false)
   instance.show()
   instance.hide()
 end)
@@ -159,7 +173,7 @@ t.test("failed window keymap installation disposes both resources", function()
   end, instance.show)
   t.equal(#api.nvim_list_wins(), before_windows)
   t.equal(#api.nvim_list_bufs(), before_buffers)
-  t.equal(vim.g.cheatsheet_displayed, false)
+  t.equal(instance.is_open(), false)
 end)
 
 t.test("partial creation stays owned when cleanup also fails", function()
@@ -216,7 +230,8 @@ end)
 t.test("highlighting failures restore readonly state before propagating", function()
   local adapter = integration.new()
   local options = config.normalize()
-  adapter.install(options, { toggle = function() end, resize = function() end, closed = function() end })
+  local noop = function() end
+  adapter.install(options, { toggle = noop, show = noop, resize = noop, closed = noop })
   local size = layout.geometry(options.window, adapter.viewport())
   local actions = { close = function() end, next_mode = function() end, prev_mode = function() end }
   local session = adapter.create(options, api.nvim_get_current_buf(), source_win, actions, size)
@@ -241,19 +256,19 @@ end)
 
 t.test("all supported modes read the original buffer-local mappings", function()
   local source = api.nvim_get_current_buf()
-  local modes = { "n", "i", "v", "o", "t" }
-  for _, mode in ipairs(modes) do
+  local configured = { "n", "i", "v", "o", "t" }
+  for _, mode in ipairs(configured) do
     vim.keymap.set(mode, "zz" .. mode, function() end, { buffer = source, desc = "Mode " .. mode .. " action" })
   end
-  local instance = fixture({ modes = modes })
-  for _, mode in ipairs(modes) do
+  local instance = fixture({ modes = configured })
+  for _, mode in ipairs(configured) do
     instance.show(mode)
     local text = table.concat(api.nvim_buf_get_lines(0, 0, -1, false), "\n")
-    assert(text:find("[" .. mode .. "]", 1, true))
+    assert(text:find("[" .. modes.names[mode] .. "]", 1, true))
     assert(text:find("Mode " .. mode .. " action", 1, true))
   end
   instance.hide()
-  for _, mode in ipairs(modes) do
+  for _, mode in ipairs(configured) do
     vim.keymap.del(mode, "zz" .. mode, { buffer = source })
   end
 end)
@@ -263,7 +278,7 @@ t.test("an empty source result uses the same layout after resize", function()
   instance.show()
   local win, buf = api.nvim_get_current_win(), api.nvim_get_current_buf()
   local function message()
-    return table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n"):find("No mappings for i mode", 1, true)
+    return table.concat(api.nvim_buf_get_lines(buf, 0, -1, false), "\n"):find("No mappings for insert mode", 1, true)
   end
   assert(message())
   vim.o.columns = 100

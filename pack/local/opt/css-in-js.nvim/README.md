@@ -165,8 +165,11 @@ NVIM_LOG_FILE=/tmp/css-in-js-nvim.log XDG_STATE_HOME=/tmp/css-in-js-state nvim -
 NVIM_LOG_FILE=/tmp/css-in-js-adapter.log XDG_STATE_HOME=/tmp/css-in-js-state nvim --clean --headless -i NONE -l tests/adapter.lua
 NVIM_LOG_FILE=/tmp/css-in-js-lsp.log XDG_STATE_HOME=/tmp/css-in-js-state nvim --clean --headless -i NONE -l tests/lsp.lua
 NVIM_LOG_FILE=/tmp/css-in-js-types.log XDG_STATE_HOME=/tmp/css-in-js-state nvim --clean --headless -i NONE -l tests/types_check.lua
-stylua --search-parent-directories --check .
+stylua --check .
 ```
+
+`stylua.toml` in the plugin root matches the host configuration, so `stylua --check .` verifies
+formatting from the plugin root as well as from the configuration root; `stylua .` applies it.
 
 The pure suites also run with headless Neovim and remove the `vim` global during execution.
 `lsp.lua` uses a real installed vscode-css-language-server to verify completion application

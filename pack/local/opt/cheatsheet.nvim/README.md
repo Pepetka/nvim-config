@@ -15,19 +15,24 @@ require("cheatsheet").setup({
   },
   sort_groups = { "git", "other" },
   exclude = { desc_patterns = { "^Lua function", "^MiniPairs" } },
+  include = { patterns = { "^[%[%]][qQ]$" } },
   layout = { key_gap = 4, mapping_spacing = 1, group_spacing = 2 },
 })
 ```
 
-`setup(opts?)` defines `:Cheatsheet`. Call it before `show(mode?)`, `toggle()`,
-`next_mode()` or `prev_mode()`. Repeated setup warns and keeps the original configuration.
-Calling an opening operation before setup reports an error without opening a window.
-`hide()` is safe before setup and can be repeated.
+`setup(opts?)` defines `:Cheatsheet [mode]`: without an argument it toggles the browser,
+with a configured mode (completed on the command line) it shows that mode. Call setup before
+`show(mode?)`, `toggle()`, `next_mode()` or `prev_mode()`. Repeated setup closes an open
+browser and replaces the configuration, commands, autocommands and opening key, so re-sourcing
+the host configuration applies changes. If installation fails, the previous registrations are
+removed and the plugin stays uninitialized until a later setup succeeds. Calling an opening
+operation before setup reports an error without opening a window. `hide()` is safe before
+setup and can be repeated. `is_open()` reports whether the browser window exists.
 
-Defaults include modes n/i/v/o/t, an 80% rounded floating window, q to close, and
-Tab/Shift-Tab to cycle modes. `show(mode)` accepts a configured mode; an invalid or
-unconfigured mode reports an error and leaves the session unchanged. Closing resets
-the selected mode to the first configured mode.
+Defaults include modes n/i/v/o/t, an 80% rounded floating window, q and Esc to close, and
+Tab/Shift-Tab to cycle modes. The mode line shows full names (`[normal]  insert  ...`).
+`show(mode)` accepts a configured mode; an invalid or unconfigured mode reports an error
+and leaves the session unchanged. Closing resets the selected mode to the first configured mode.
 
 No global opening key is installed by default. `open_mapping` can optionally provide
 one. The host owns `<leader>ch`, its group rules and ordering in `lua/configs/cheatsheet.lua`.
@@ -39,6 +44,9 @@ one. The host owns `<leader>ch`, its group rules and ordering in `lua/configs/ch
   is wiped, collection falls back to global mappings.
 - Buffer-local mappings override global mappings with the same key **before** filtering.
   An excluded local mapping does not reveal a shadowed global mapping.
+- Mappings are matched by their raw keymap mode. The visual tab includes `:map`, `:vmap`
+  and `:xmap` entries but not select-only `:smap` entries, which neither appear there nor
+  shadow visual mappings with the same key.
 - `group_rules` match trimmed descriptions with Lua patterns. The first matching rule
   wins. Groups not matched by a rule use `default_group` (name `other` by default).
 - Without an explicit rule `prefix`, only a colon-terminated first token on a matched description is removed. For example,
@@ -49,6 +57,9 @@ one. The host owns `<leader>ch`, its group rules and ordering in `lua/configs/ch
   `prefix = "Inline diagnostic:"` turns `Inline diagnostic: toggle diagnostics` into
   `Toggle diagnostics`. An empty prefix keeps the complete description. If an explicit
   prefix does not match, the description stays intact without automatic prefix removal.
+- `include.patterns` match the original lhs and always display matching mappings, bypassing
+  the description and key filters below; `exclude.groups` still applies. Use it for useful
+  mappings with terse descriptions, such as the native `]q` (`:cnext`).
 - `exclude.patterns` match the original lhs; the default list excludes `<Plug>` keys.
   `exclude.desc_patterns` match trimmed original descriptions before display formatting
   or prefix removal; the default list contains `^Lua function`. Both lists contain Lua
@@ -62,11 +73,14 @@ one. The host owns `<leader>ch`, its group rules and ordering in `lua/configs/ch
   suppresses the icon. For groups with multiple matching rules, the earliest matched
   rule determines their icon, independently of keymap collection order.
 - `sort_groups` defines group priorities; unlisted groups sort by name. `sort_keys`
-  supports lexical lhs order (`alphanum`) or descriptions (`desc`, then lhs for ties).
+  supports lhs order (`alphanum`) or descriptions (`desc`, then lhs for ties). Both compare
+  case-insensitively and place lowercase first (`gb`, `gc`, `gC`).
+- The leader prefix is displayed as `<leader> + `; remaining literal spaces become `<Space>`.
 - Partial option dictionaries merge with defaults; supplied lists replace default lists,
   including empty lists. Options and defaults are never mutated by normalization.
   Invalid fields warn and use defaults; invalid individual rules or patterns warn and
-  are skipped. Modes must be a nonempty list of unique supported modes.
+  are skipped. Unknown options and rule fields warn and are ignored. Modes must be a
+  nonempty list of unique supported modes.
 
 `layout` controls document density. All values are nonnegative integers and accept zero:
 
@@ -90,12 +104,14 @@ scrollable with wrapping disabled.
 
 ## Session lifecycle
 
-The controller owns one session; `vim.g.cheatsheet_displayed` is only a compatibility
-reflection of its visibility. Changing that variable does not control the plugin.
+The controller owns one session. Floating windows belong to a tab page: opening or toggling
+the browser from another tab page closes the hidden window and opens it on the current one,
+keeping the selected mode.
 
 Resize updates the existing window and buffer, preserving mode, cursor, scroll position
 and focus. Repeated resize events are coalesced, and unchanged geometry skips redraw.
-ColorScheme reapplies the plugin's highlight links.
+Highlight groups are default links (descriptions use `NormalFloat`), so definitions from the
+host or a colorscheme take precedence; ColorScheme restores links cleared by `:highlight clear`.
 
 Normal closure, external window closure and scratch-buffer wipe clean up the owned
 resources. Unrelated windows and buffers are ignored, including ones with the same
@@ -139,6 +155,9 @@ NVIM_LOG_FILE=/tmp/cheatsheet-types.log nvim --clean --headless -i NONE -l tests
 stylua --check .
 ```
 
+`stylua.toml` in the plugin root matches the host configuration, so `stylua --check .` verifies
+formatting from the plugin root as well as from the configuration root; `stylua .` applies it.
+
 All production functions, public options, domain structures and adapter callbacks have
 LuaCATS contracts. The public API uses partial options; normalization and syntax validation
 accept `unknown` at the untrusted-input boundary. Session resource IDs remain optional
@@ -154,15 +173,17 @@ on PATH or in Mason; set `LUA_LS=/path/to/lua-language-server` to override its l
 The three pure suites also run with `nvim --clean --headless -i NONE -l tests/<suite>.lua`;
 they remove the `vim` global while executing tests. No dependencies are installed or modified.
 
-- **Core:** option validation, immutable inputs/defaults, pattern syntax, lhs/description filters,
-  source precedence, descriptions, icons, stable sorting, leader formatting and modes.
+- **Core:** option validation and unknown-option warnings, immutable inputs/defaults, pattern syntax,
+  lhs/description filters and inclusions, raw keymap modes, source precedence, descriptions, icons,
+  case-insensitive sorting, leader and Space formatting and modes.
 - **Layout:** exact lines and spans, Unicode byte/cell boundaries, alignments, separators,
   configurable spacing (including zero), empty results, empty icons/descriptions and small-window geometry.
-- **Controller:** independent instances, setup, source context, mode changes, resize,
-  ownership, reentrancy, error handling and cleanup retries using an injected test adapter.
-- **Neovim:** public API and actual mapped keys, source-buffer overrides, extmarks,
-  ColorScheme, resize/view/focus, external closure, source deletion and queued events.
-- **Adapter:** every supported mode and border, default leader, optional opening mapping,
+- **Controller:** independent instances, setup and reconfiguration, source context, mode changes,
+  tab pages, resize, ownership, reentrancy, error handling and cleanup retries using an injected test adapter.
+- **Neovim:** public API and actual mapped keys, command arguments and completion, source-buffer
+  overrides, select-only mappings, extmarks, ColorScheme and host highlights, resize/view/focus,
+  tab pages, external closure, source deletion and queued events.
+- **Adapter:** every supported mode and border, default leader, optional and reconfigured opening mapping,
   tiny floats, explicit prefixes, description filters, custom layout through resize,
   setup rollback and injected allocation/rendering/cleanup failures.
 - **Regressions:** seven previously failing public-API scenarios, reproduced before refactoring.

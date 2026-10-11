@@ -439,6 +439,81 @@ t.test("prefix selection belongs to the first matched rule, independently of the
   t.equal(result[1].mappings[2].desc, "First action")
 end)
 
+t.test("raw keymap modes select visual mappings without select-only entries", function()
+  for raw, expected in pairs({ [" "] = true, v = true, x = true, nox = true, ov = true, s = false, n = false }) do
+    t.equal(modes.covers(raw, "v"), expected, raw)
+  end
+  t.equal(modes.covers("!", "i"), true)
+  t.equal(modes.covers("nox", "n"), true)
+  t.equal(modes.covers(nil, "t"), true)
+  local global = {
+    { lhs = "<Tab>", desc = "Visual action", mode = "x" },
+    { lhs = "<Tab>", desc = "Select action", mode = "s" },
+    { lhs = "gx", desc = "Open path", mode = " " },
+  }
+  local local_mappings = { { lhs = "gx", desc = "Select override", mode = "s" } }
+  local result = build(global, local_mappings, {}, "v")[1].mappings
+  t.equal(result, {
+    { lhs = "<Tab>", desc = "Visual action", mode = "v" },
+    { lhs = "gx", desc = "Open path", mode = "v" },
+  })
+end)
+
+t.test("literal spaces in keys are displayed as Space after leader removal", function()
+  t.equal(mappings.format_lhs("[ ", " "), "[<Space>")
+  t.equal(mappings.format_lhs("  ", " "), "<leader> + <Space>")
+  t.equal(mappings.format_lhs("\\ x", "\\"), "<leader> + <Space>x")
+  t.equal(build({ raw("] ", "Add empty line") })[1].mappings[1].lhs, "]<Space>")
+end)
+
+t.test("keys and descriptions sort case-insensitively with lowercase first", function()
+  local data = { raw("gC", "beta action"), raw("gc", "Beta action"), raw("gb", "Alpha action") }
+  local result = build(data)[1].mappings
+  t.equal({ result[1].lhs, result[2].lhs, result[3].lhs }, { "gb", "gc", "gC" })
+  result = build(data, {}, { sort_keys = "desc" })[1].mappings
+  t.equal({ result[1].desc, result[2].desc, result[3].desc }, { "Alpha action", "beta action", "Beta action" })
+end)
+
+t.test("included keys bypass description and key filters but not excluded groups", function()
+  local data = { raw("]q", ":cnext"), raw("[q", nil), raw("<Plug>keep", "Lua function keep"), raw("zz", "One") }
+  local options = { include = { patterns = { "^[%[%]]q$", "^<Plug>keep$" } } }
+  local result = build(data, {}, options)[1].mappings
+  t.equal({ result[1].lhs, result[2].lhs, result[3].lhs }, { "<Plug>keep", "[q", "]q" })
+  t.equal(result[2].desc, "")
+  options.exclude = { groups = { "other" } }
+  t.equal(build(data, {}, options), {})
+  local normalized, messages = config.normalize({ include = { patterns = { "^ok", "bad[" } } })
+  t.equal(normalized.include.patterns, { "^ok" })
+  t.equal(#messages, 1)
+  t.equal(config.defaults().include.patterns, {})
+end)
+
+t.test("unknown options and rule fields warn without discarding valid values", function()
+  local result, messages = config.normalize({
+    grop_rules = {},
+    window = { widht = 0.5, padding = { lft = 1 } },
+    exclude = { pattern = {} },
+    include = { pattern = {} },
+    group_rules = { { pattern = "^Git:", group = "git", icn = "G" } },
+    [1] = true,
+  })
+  t.equal(messages, {
+    "cheatsheet: unknown option 1, ignoring",
+    "cheatsheet: unknown option exclude.pattern, ignoring",
+    "cheatsheet: unknown option grop_rules, ignoring",
+    "cheatsheet: unknown option group_rules[1].icn, ignoring",
+    "cheatsheet: unknown option include.pattern, ignoring",
+    "cheatsheet: unknown option window.padding.lft, ignoring",
+    "cheatsheet: unknown option window.widht, ignoring",
+  })
+  t.equal(result.group_rules, { { pattern = "^Git:", group = "git", icn = "G" } })
+  t.equal(result.window, config.defaults().window)
+end)
+
+t.test("default close keys include Escape", function()
+  t.equal(config.defaults().mappings.close, { "q", "<Esc>" })
+end)
+
 local ok, err = pcall(t.run, "cheatsheet core (without vim)")
 _G.vim = host_vim
 assert(ok, err)

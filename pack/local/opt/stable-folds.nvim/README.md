@@ -149,6 +149,9 @@ done
 stylua --check .
 ```
 
+`stylua.toml` in the plugin root matches the host configuration, so `stylua --check .` verifies
+formatting from the plugin root as well as from the configuration root; `stylua .` applies it.
+
 Core/controller suites also run with `vim = nil` inside Neovim. The native suites
 use installed Lua/JSON parsers and nvim-treesitter queries from
 `stdpath("data")/site`, without loading the host configuration or downloading

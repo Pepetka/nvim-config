@@ -41,9 +41,9 @@ t.test("ASCII document has exact spacing and explicit highlight spans", function
     { { name = "tools", icon = "I ", mappings = { { lhs = "a", desc = "Alpha" }, { lhs = "bb", desc = "Beta" } } } }
   local before = t.copy(groups)
   local document = layout.build(groups, "n", options, 16, measure)
-  t.equal(document.lines, { " ", " [n]  i  ", " ", " I tools", " ", " a     Alpha", " ", " bb    Beta", " " })
+  t.equal(document.lines, { " ", " [normal]  insert  ", " ", " I tools", " ", " a     Alpha", " ", " bb    Beta", " " })
   t.equal(document.spans, {
-    { row = 1, start_col = 1, end_col = 9, hl_group = "CheatsheetTitle" },
+    { row = 1, start_col = 1, end_col = 19, hl_group = "CheatsheetTitle" },
     { row = 3, start_col = 1, end_col = 3, hl_group = "CheatsheetGroupIcon" },
     { row = 3, start_col = 3, end_col = 8, hl_group = "CheatsheetGroup" },
     { row = 5, start_col = 1, end_col = 3, hl_group = "CheatsheetKey" },
@@ -89,8 +89,8 @@ end)
 
 t.test("empty results show a message and highlight it as a description", function()
   local document = layout.build({}, "i", config.normalize(), 30, measure)
-  t.equal(document.lines[4], "  No mappings for i mode")
-  t.equal(document.spans[2], { row = 3, start_col = 2, end_col = 24, hl_group = "CheatsheetDesc" })
+  t.equal(document.lines[4], "  No mappings for insert mode")
+  t.equal(document.spans[2], { row = 3, start_col = 2, end_col = 29, hl_group = "CheatsheetDesc" })
   check_spans(document)
 end)
 
@@ -184,7 +184,8 @@ t.test("tiny ratios and viewports never produce zero or negative dimensions", fu
 end)
 
 t.test("mode labels and key widths handle empty and mixed-width groups", function()
-  t.equal(layout.mode_label({ "n", "i" }, "i"), " n  [i] ")
+  t.equal(layout.mode_label({ "n", "i" }, "i"), " normal  [insert] ")
+  t.equal(layout.mode_label({ "v", "o", "t" }, "o"), " visual  [operator]  terminal  ")
   t.equal(layout.key_width({}, measure), 0)
   t.equal(layout.key_width({ { mappings = { { lhs = "界" }, { lhs = "aaa" } } } }, measure), 3)
 end)
@@ -203,7 +204,7 @@ t.test("custom column gap and vertical spacing produce exact lines and spans", f
   }, "n", options, 20, measure)
   t.equal(
     document.lines,
-    { "[n] ", "", "first", "", "a   Alpha", "", "", "界  Wide", "", "", "", "second", "", "bb  Beta" }
+    { "[normal] ", "", "first", "", "a   Alpha", "", "", "界  Wide", "", "", "", "second", "", "bb  Beta" }
   )
   local starts = {}
   for _, span in ipairs(document.spans) do
@@ -227,7 +228,7 @@ t.test("zero spacing creates compact rows without trailing blanks or overlapping
     { name = "first", icon = "", mappings = { { lhs = "a", desc = "Alpha" }, { lhs = "b", desc = "Beta" } } },
     { name = "second", icon = "", mappings = { { lhs = "c", desc = "Gamma" } } },
   }, "n", options, 20, measure)
-  t.equal(document.lines, { "[n] ", "", "first", "", "aAlpha", "bBeta", "second", "", "cGamma" })
+  t.equal(document.lines, { "[normal] ", "", "first", "", "aAlpha", "bBeta", "second", "", "cGamma" })
   for index, span in ipairs(document.spans) do
     if span.hl_group == "CheatsheetKey" then
       t.equal(span.end_col, document.spans[index + 1].start_col)
