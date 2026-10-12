@@ -37,7 +37,10 @@ function M.normalize(opts)
       valid = type(value) == "function"
     elseif key == "new_folds" then
       valid = value == "open" or value == "inherit"
-    elseif key == "include_injections" or key == "notify_errors" then
+    elseif key == "include_injections" then
+      valid = type(value) == "boolean" or M.languages(value) ~= nil
+      value = valid and type(value) == "table" and M.languages(value) or value
+    elseif key == "notify_errors" then
       valid = type(value) == "boolean"
     elseif key == "max_lines" or key == "max_bytes" then
       valid = M.integer(value)
@@ -54,6 +57,35 @@ function M.normalize(opts)
   end
   table.sort(messages)
   return result, messages
+end
+
+---Copy a language -> boolean table, or nil when any entry is invalid.
+---@param value unknown
+---@return table<string, boolean>?
+function M.languages(value)
+  if type(value) ~= "table" then
+    return nil
+  end
+  local result = {}
+  for lang, enabled in pairs(value) do
+    if type(lang) ~= "string" or type(enabled) ~= "boolean" then
+      return nil
+    end
+    result[lang] = enabled
+  end
+  return result
+end
+
+---Languages missing from a table include injections.
+---@param options StableFoldsConfig
+---@param lang? string
+---@return boolean
+function M.injections(options, lang)
+  local value = options.include_injections
+  if type(value) == "table" then
+    return not lang or value[lang] ~= false
+  end
+  return value
 end
 
 ---@param size StableFoldsSize

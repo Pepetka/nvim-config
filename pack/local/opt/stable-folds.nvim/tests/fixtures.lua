@@ -42,6 +42,7 @@ function M.new()
     },
     unavailable = {},
     watchers = {},
+    committed = {},
     closed = {},
     restored = {},
     marks = {},
@@ -79,13 +80,6 @@ function M.new()
       buf = buf and buf ~= 0 and buf or state.contexts[state.current].buf
       return state.text[buf] and buf or nil
     end,
-    lines = function(buf)
-      state.reads = state.reads + 1
-      if state.fail == "lines" then
-        error("lines failed")
-      end
-      return t.copy(state.text[buf])
-    end,
     line_count = function(buf)
       return #state.text[buf]
     end,
@@ -94,7 +88,14 @@ function M.new()
       if state.fail == "lines" then
         error("lines failed")
       end
-      return require("stable_folds.core.ranges").headers(normalized, state.text[buf])
+      local result, seen = {}, {}
+      for _, range in ipairs(normalized) do
+        if not seen[range.start] then
+          seen[range.start] = true
+          result[#result + 1] = { line = range.start, header = state.text[buf][range.start] }
+        end
+      end
+      return result
     end,
     size = function(buf)
       state.size_reads = (state.size_reads or 0) + 1
@@ -104,8 +105,9 @@ function M.new()
       end
       return { lines = #state.text[buf], bytes = bytes }
     end,
-    collect = function(buf)
+    collect = function(buf, _, include_injections)
       state.parses = state.parses + 1
+      state.injections = include_injections
       if state.on_collect then
         state.on_collect()
       end
@@ -189,8 +191,9 @@ function M.new()
     open = function(win, lines)
       state.opened[win] = t.copy(lines)
     end,
-    watch = function(buf, callback)
+    watch = function(buf, callback, _, committed)
       state.watchers[buf] = callback
+      state.committed[buf] = committed
       return function()
         if state.watchers[buf] == callback then
           state.watchers[buf] = nil

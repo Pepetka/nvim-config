@@ -3,7 +3,8 @@ local folds = require("stable_folds")
 ---@type StableFoldsOptions
 local options = {
   new_folds = "open",
-  include_injections = true,
+  -- Thousands of Markdown injection trees make each edit about twice as slow.
+  include_injections = { markdown = false },
   max_lines = 0,
   max_bytes = 0,
   notify_errors = true,

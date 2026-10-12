@@ -11,6 +11,7 @@
 ---@field opened table<integer, integer[]>
 ---@field next_id integer
 ---@field parses integer
+---@field injections? boolean
 ---@field reads integer
 ---@field size_reads? integer
 ---@field context_reads? integer
@@ -27,5 +28,6 @@
 ---@field on_collect? StableFoldsAction
 ---@field on_recompute? StableFoldsAction
 ---@field watchers table<integer, StableFoldsBeforeChange>
+---@field committed table<integer, StableFoldsAction?>
 ---@field closed table<integer, table<integer, boolean>>
 ---@field restored table<integer, StableFoldsFoldState[]>

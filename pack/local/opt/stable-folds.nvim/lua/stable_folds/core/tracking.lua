@@ -2,6 +2,7 @@ local M = {}
 
 ---Reserve every positional match before considering formatter recovery. Otherwise
 ---an inserted duplicate can steal the identity of an original header further down.
+---A valid mark keeps its identity when the header text was edited in place.
 ---@param old StableFoldsPosition[]
 ---@param headers StableFoldsHeader[]
 ---@param new_folds boolean Whether unmatched starts came from an edit to an existing snapshot.
@@ -29,11 +30,17 @@ function M.match(old, headers, new_folds)
   ---@type table<integer, StableFoldsPosition>
   local selected = {}
   for index, header in ipairs(headers) do
-    local candidate, count = nil, 0
+    local candidate, count, valid, valid_count = nil, 0, nil, 0
     for _, mark in ipairs(positions[header.line] or {}) do
       if mark.header == header.header then
         candidate, count = mark, count + 1
       end
+      if not mark.invalid then
+        valid, valid_count = mark, valid_count + 1
+      end
+    end
+    if count == 0 and valid_count == 1 then
+      candidate, count = valid, 1
     end
     if count == 1 and candidate then
       selected[index], used[candidate.id] = candidate, true
@@ -54,7 +61,7 @@ function M.match(old, headers, new_folds)
       header = header.header,
       id = mark and mark.id or nil,
       new = mark and mark.new or (mark == nil and new_folds),
-      unchanged = mark ~= nil and mark.line == header.line or nil,
+      unchanged = mark ~= nil and not mark.invalid and mark.line == header.line and mark.header == header.header or nil,
     }
   end
   for _, mark in ipairs(old) do
@@ -102,6 +109,23 @@ function M.restore(positions, states, levels)
   table.sort(result, function(a, b)
     return a.line < b.line
   end)
+  return result
+end
+
+---States that could not be restored because their identity has no visible start.
+---@param positions StableFoldsPosition[]
+---@param states? table<integer, boolean>
+---@param levels string[]
+---@return table<integer, boolean>?
+function M.dormant(positions, states, levels)
+  local result
+  for _, mark in ipairs(positions) do
+    local closed = states and states[mark.id]
+    if closed ~= nil and mark.line and (levels[mark.line] or ""):sub(1, 1) ~= ">" then
+      result = result or {}
+      result[mark.id] = closed
+    end
+  end
   return result
 end
 

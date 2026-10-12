@@ -37,6 +37,11 @@ vim.opt.foldmethod = "expr"
 vim.opt.foldexpr = folds.foldexpr
 ```
 
+Filetype plugins may set a local `foldexpr` (for example the runtime Lua ftplugin);
+call `folds.attach()` from a `FileType` autocommand for such filetypes. Reading a
+file never overrides filetype plugin settings; only a reload restores the expression
+in windows that used it.
+
 Install parsers and `folds` queries separately. The plugin installs no parsers,
 queries, mappings or commands and does not require host configuration helpers.
 
@@ -44,7 +49,7 @@ queries, mappings or commands and does not require host configuration helpers.
 | --- | --- | --- |
 | `filter` | Accept regular buffers | Buffer predicate; special buffers are always excluded. |
 | `new_folds` | `"open"` | `"open"` opens new folds after edits; `"inherit"` uses each window's current `foldlevel`. Existing folds retain their manual state. |
-| `include_injections` | `true` | Include nested languages. `false` parses and queries only host trees, even if another consumer already parsed injections. |
+| `include_injections` | `true` | Include nested languages. `false` parses and queries only host trees, even if another consumer already parsed injections. A table such as `{ markdown = false }` sets this per host language; missing languages include injections. |
 | `max_lines` | `0` | Skip buffers with more lines than this limit; `0` disables the limit. |
 | `max_bytes` | `0` | Skip buffers exceeding this UTF-8 byte limit, including Neovim's line terminators; `0` disables the limit. |
 | `notify_errors` | `true` | Emit configuration warnings and contained runtime errors through `vim.notify`. `false` silences both. |
@@ -61,11 +66,13 @@ all options with defaults plus the supplied values and updates existing windows.
   `filter(buf)` defaults to `true` for regular buffers;
   special buffers are always excluded. Invalid options warn and use defaults;
   unknown keys warn and are ignored.
-- `attach(win?)` sets the expression and foldmethod in a window; omitted or `0`
-  means the current window. Other fold options are caller-owned.
+- `attach(win?)` sets the window-local (`:setlocal`) expression and foldmethod;
+  omitted or `0` means the current window. Global values, new splits and other
+  buffers are not affected. Other fold options are caller-owned.
 - `expr(line?)` returns a level string for the current buffer/window. Omitted line
   uses `vim.v.lnum`; invalid or out-of-buffer lines return `"0"`. It and `attach`
-  work before `setup`, with defaults, but automatic refresh requires setup.
+  work before `setup`, with defaults: without an edit listener every revision is
+  parsed when evaluated, while manual state preservation and refresh require setup.
 - `refresh(buf?)` invalidates the range snapshot and refreshes all windows using
   this expression for the buffer. Omitted or `0` means the current buffer.
   Hidden buffers recompute when next evaluated. This also picks up parser/query
@@ -82,7 +89,11 @@ setup requires no migration.
 
 ## Fold identity and refresh
 
-Moving header extmarks identify folds across edits. All positional matches are
+Moving header extmarks identify folds across edits. Each mark spans its header
+line, so a fold keeps its identity when the header is edited in place, e.g. by a
+rename, `:substitute` or a formatter's partial edit. Deleting the whole header
+invalidates the mark; it then matches only an identical header, as do marks after
+a reload from disk. All positional matches are
 reserved before attempting formatter recovery by headers unique in both
 snapshots. An inserted duplicate cannot steal an original fold's identity.
 Ambiguous full replacements use fresh identities rather than transferring a
@@ -93,10 +104,17 @@ during an edit burst and restored by identity after refresh. This preserves diff
 splits, formatter replacements with changing line counts and reordered unique
 headers. State inspection freezes the native fold tree and temporarily exposes
 closed ancestors, then restores folds, window options and the view immediately.
-Restoring an open parent does not recursively open existing children. By default, new folds after text edits are opened;
+Restoring an open parent does not recursively open existing children. An identity
+without a native fold, for example temporarily nested beyond `foldnestmax`, keeps
+its last state per window until its fold reappears; inspection skips such starts
+instead of recording them as open. By default, new folds after text edits are opened;
 initial folds and option/query changes honor native fold settings.
 
-TextChanged, TextChangedI, TextChangedP, InsertLeave and BufWritePost refresh complete boundaries. FileType
+TextChanged, InsertLeave and BufWritePost refresh complete boundaries. Neovim does
+not update expression folds in Insert mode, so typing and popup completion only
+capture states and translate levels; the complete parse runs once at InsertLeave.
+Edits of buffers other than the current one, which receive no TextChanged event,
+commit after the event loop settles. FileType
 resets identity when the language changes. BufUnload releases snapshots, watchers
 and marks while retaining lightweight identities and closed flags until reload
 or BufWipeout. BufReadPre captures state when a reload does not unload first;
@@ -110,8 +128,8 @@ parsers/queries, and User TSUpdate invalidates known snapshots. Manual refresh i
 available independently of nvim-treesitter.
 
 Missing parsers/queries and excluded buffers produce zero levels. Filter, parse,
-query and adapter errors are contained; notifications are deduplicated per buffer
-revision. Failed parses do not publish partial levels or discard existing header
+query and adapter errors are contained; a repeated message for the same buffer and
+language is reported once until a snapshot succeeds. Failed parses do not publish partial levels or discard existing header
 identities. Explicit refresh, entering a window or a new changedtick retries them.
 Buffer edits and lifecycle changes during collection discard stale results.
 
@@ -129,7 +147,8 @@ The structure matches the other local plugins:
 - `core/`: pure configuration normalization, range conversion/deduplication,
   level calculation, snapshot/view cache rules and identity/state matching.
 - `integrations/treesitter.lua`: native synchronous parsing and query extraction,
-  returning plain coordinates without trees or nodes.
+  returning plain coordinates without trees or nodes. A highlighter started for
+  another language (e.g. `tsx` for `javascript`) keeps its buffer parser.
 - `integrations/nvim.lua`: buffers, windows, extmarks, edit listeners, autocommands
   and notifications. Adapter instances own independent resources.
 - `types.lua`: LuaCATS contracts for public options/API, domain data, controller
@@ -167,11 +186,13 @@ cancellation, resource isolation and repeated setup/teardown.
 During byte edits, Neovim may expose its old or already moved native fold tree,
 and undo can evaluate foldexpr before Tree-sitter receives the edit notification.
 State capture detects native starts individually; temporary translated levels
-keep folds stable until the safe text-change event commits a fresh parse. Insert
-and popup completion changes restore states immediately, without waiting for Escape.
+keep folds stable until the safe text-change event commits a fresh parse. State
+inspection and window option changes use `:noautocmd setlocal`, so refreshes emit
+no `OptionSet` events.
 
 `tests/interactive.lua` drives a separate embedded Neovim through real RPC input,
 without manually firing editing autocommands. It covers `o`/`O`, mode transitions,
 multiline input, deletion, register/linewise/bracketed/streamed paste, undo/redo,
-popup completion, nested folds and different states in splits. Native opening of
+popup completion, nested folds, different states in splits, folds temporarily
+nested beyond `foldnestmax` and partial substitutions of closed headers. Native opening of
 the target fold for editing or undo cursor movement remains supported.

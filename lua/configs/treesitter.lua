@@ -76,7 +76,6 @@ api.nvim_create_autocmd("FileType", {
     vim.treesitter.start(args.buf, lang)
 
     require("stable_folds").attach()
-    vim.wo[0][0].foldminlines = 4
   end,
 })
 

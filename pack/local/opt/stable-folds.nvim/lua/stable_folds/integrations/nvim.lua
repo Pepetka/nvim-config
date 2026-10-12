@@ -22,7 +22,7 @@ function M.new()
   sequence = sequence + 1
   local suffix = sequence == 1 and "" or tostring(sequence)
   local namespace = api.nvim_create_namespace("StableFoldStarts" .. suffix)
-  local group_name = "SynchronousFolds" .. suffix
+  local group_name = "StableFolds" .. suffix
   ---@type integer?
   local group
   ---@type integer[]
@@ -33,6 +33,8 @@ function M.new()
   local watched = {}
   ---@type table<integer, integer[]>
   local reload_windows = {}
+  ---@type table<integer, boolean>
+  local read = {}
   local adapter = { collect = treesitter.collect }
 
   ---@return integer
@@ -98,12 +100,6 @@ function M.new()
   end
 
   ---@param buf integer
-  ---@return string[]
-  function adapter.lines(buf)
-    return api.nvim_buf_get_lines(buf, 0, -1, false)
-  end
-
-  ---@param buf integer
   ---@return integer
   function adapter.line_count(buf)
     return api.nvim_buf_line_count(buf)
@@ -147,8 +143,10 @@ function M.new()
   ---@return StableFoldsPosition[]
   function adapter.positions(buf, marks)
     local positions = {}
-    for _, position in ipairs(api.nvim_buf_get_extmarks(buf, namespace, 0, -1, {})) do
+    local invalid = {}
+    for _, position in ipairs(api.nvim_buf_get_extmarks(buf, namespace, 0, -1, { details = true })) do
       positions[position[1]] = position[2] + 1
+      invalid[position[1]] = position[4].invalid or nil
     end
     local result = {}
     for _, mark in ipairs(marks) do
@@ -157,6 +155,7 @@ function M.new()
         header = mark.header,
         new = mark.new,
         line = positions[mark.id],
+        invalid = invalid[mark.id],
       }
     end
     return result
@@ -172,8 +171,16 @@ function M.new()
     end
     local result = {}
     for _, mark in ipairs(plan.marks) do
+      -- A mark spanning the header survives partial header edits such as renames;
+      -- deleting the whole header invalidates it and requires a text match.
       local id = mark.unchanged and mark.id
-        or api.nvim_buf_set_extmark(buf, namespace, mark.line - 1, 0, { id = mark.id, right_gravity = true })
+        or api.nvim_buf_set_extmark(buf, namespace, mark.line - 1, 0, {
+          id = mark.id,
+          right_gravity = true,
+          end_row = #mark.header > 0 and mark.line - 1 or nil,
+          end_col = #mark.header > 0 and #mark.header or nil,
+          invalidate = #mark.header > 0 or nil,
+        })
       result[#result + 1] = { id = id, header = mark.header, new = mark.new }
     end
     return result
@@ -220,8 +227,8 @@ function M.new()
   function adapter.attach(win)
     local resolved = window(win)
     if resolved then
-      vim.wo[resolved].foldexpr = foldexpr
-      vim.wo[resolved].foldmethod = "expr"
+      api.nvim_set_option_value("foldexpr", foldexpr, { scope = "local", win = resolved })
+      api.nvim_set_option_value("foldmethod", "expr", { scope = "local", win = resolved })
     end
     return resolved
   end
@@ -247,7 +254,7 @@ function M.new()
     if window(win) then
       api.nvim_win_call(win, function()
         -- Unlike zx/zX, this preserves manually opened and closed folds.
-        vim.wo.foldmethod = "expr"
+        vim.cmd("noautocmd setlocal foldmethod=expr")
       end)
     end
   end
@@ -271,8 +278,9 @@ function M.new()
   ---@param buf integer
   ---@param before_change StableFoldsBeforeChange
   ---@param reloaded? StableFoldsAction
+  ---@param committed? StableFoldsAction
   ---@return StableFoldsAction
-  function adapter.watch(buf, before_change, reloaded)
+  function adapter.watch(buf, before_change, reloaded, committed)
     local watcher = watched[buf]
     if not watcher then
       watcher = { ready_tick = api.nvim_buf_get_changedtick(buf) }
@@ -283,6 +291,17 @@ function M.new()
           if watcher.callback then
             watcher.ready_tick = tick
             watcher.callback({ start_row = start_row, start_col = start_col, old_rows = old_rows, new_rows = new_rows })
+            if watcher.committed and not watcher.scheduled then
+              -- TextChanged* only reports the current buffer; commit other edits once settled.
+              watcher.scheduled = true
+              vim.schedule(function()
+                watcher.scheduled = nil
+                if watcher.committed and api.nvim_buf_is_loaded(buf) and buf ~= api.nvim_get_current_buf() then
+                  watcher.ready_tick = api.nvim_buf_get_changedtick(buf)
+                  watcher.committed()
+                end
+              end)
+            end
           else
             if watched[buf] == watcher then
               watched[buf] = nil
@@ -294,7 +313,7 @@ function M.new()
           if watched[buf] == watcher then
             watched[buf] = nil
           end
-          watcher.callback, watcher.reloaded = nil, nil
+          watcher.callback, watcher.reloaded, watcher.committed = nil, nil, nil
         end,
         on_reload = function()
           if watcher.callback then
@@ -311,10 +330,10 @@ function M.new()
         error(ok and ("cannot watch fold buffer " .. buf) or tostring(attached), 0)
       end
     end
-    watcher.callback, watcher.reloaded = before_change, reloaded
+    watcher.callback, watcher.reloaded, watcher.committed = before_change, reloaded, committed
     return function()
       if watcher.callback == before_change then
-        watcher.callback, watcher.reloaded = nil, nil
+        watcher.callback, watcher.reloaded, watcher.committed = nil, nil, nil
       end
     end
   end
@@ -357,7 +376,7 @@ function M.new()
       local ok, result = pcall(function()
         -- Freeze the native tree while querying flags. Re-evaluating expr during
         -- on_bytes would apply old levels to the already edited buffer.
-        vim.wo.foldmethod = "manual"
+        vim.cmd("noautocmd setlocal foldmethod=manual")
         local moved = true
         local decided = false
         ---@type table<integer, integer>
@@ -393,7 +412,8 @@ function M.new()
           if line then
             if observed[line] ~= nil then
               states[mark.id] = observed[line]
-            else
+            elseif not mark.hidden or vim.fn.foldclosed(line) == line or starts(line) then
+              -- A hidden identity that is not a native start has an unknown state.
               local closed = vim.fn.foldclosed(line)
               while closed ~= -1 and closed < line do
                 opened[#opened + 1] = closed
@@ -433,7 +453,7 @@ function M.new()
         end)
       end
       cleanup(function()
-        vim.wo.foldmethod = method
+        vim.cmd("noautocmd setlocal foldmethod=" .. method)
       end)
       cleanup(function()
         vim.fn.winrestview(view)
@@ -471,9 +491,9 @@ function M.new()
 
   ---@return nil
   function adapter.uninstall()
-    reload_windows = {}
+    reload_windows, read = {}, {}
     for _, watcher in pairs(watched) do
-      watcher.callback, watcher.reloaded = nil, nil
+      watcher.callback, watcher.reloaded, watcher.committed = nil, nil, nil
     end
     for _, id in ipairs(handlers) do
       pcall(api.nvim_del_autocmd, id)
@@ -495,13 +515,21 @@ function M.new()
   ---@return nil
   function adapter.install(callbacks)
     adapter.uninstall()
+    for _, buf in ipairs(api.nvim_list_bufs()) do
+      if api.nvim_buf_is_loaded(buf) and api.nvim_buf_get_name(buf) ~= "" and vim.bo[buf].buftype == "" then
+        read[buf] = true
+      end
+    end
     group = api.nvim_create_augroup(group_name, { clear = false })
     local ok, err = pcall(function()
       handlers[#handlers + 1] = api.nvim_create_autocmd("BufReadPre", {
         group = group,
         desc = "Capture stable fold states before disk reload",
         callback = function(args)
-          reload_windows[args.buf] = reload_windows[args.buf] or adapter.windows(args.buf)
+          -- Only a reload restores the expression; a first read keeps filetype plugin settings.
+          if read[args.buf] then
+            reload_windows[args.buf] = reload_windows[args.buf] or adapter.windows(args.buf)
+          end
           callbacks.reading(args.buf)
         end,
       })
@@ -512,24 +540,22 @@ function M.new()
           local windows = reload_windows[args.buf]
           local watcher = watched[args.buf]
           restore_reload_windows(args.buf, not (watcher and watcher.callback))
-          if windows then
+          read[args.buf] = true
+          if windows and #windows > 0 then
             callbacks.changed(args.buf)
           end
         end,
       })
-      handlers[#handlers + 1] = api.nvim_create_autocmd(
-        { "TextChanged", "TextChangedI", "TextChangedP", "InsertLeave", "BufWritePost" },
-        {
-          group = group,
-          desc = "Refresh complete stable fold boundaries",
-          callback = function(args)
-            if watched[args.buf] then
-              watched[args.buf].ready_tick = api.nvim_buf_get_changedtick(args.buf)
-            end
-            callbacks.changed(args.buf)
-          end,
-        }
-      )
+      handlers[#handlers + 1] = api.nvim_create_autocmd({ "TextChanged", "InsertLeave", "BufWritePost" }, {
+        group = group,
+        desc = "Refresh complete stable fold boundaries",
+        callback = function(args)
+          if watched[args.buf] then
+            watched[args.buf].ready_tick = api.nvim_buf_get_changedtick(args.buf)
+          end
+          callbacks.changed(args.buf)
+        end,
+      })
       handlers[#handlers + 1] = api.nvim_create_autocmd("BufWinEnter", {
         group = group,
         desc = "Retry unavailable stable fold parsers and queries",
@@ -551,15 +577,14 @@ function M.new()
         group = group,
         desc = "Suspend stable fold identities before unloading",
         callback = function(args)
-          reload_windows[args.buf] = adapter.windows(args.buf)
-          callbacks.unloaded(args.buf)
+          reload_windows[args.buf] = callbacks.unloaded(args.buf) and adapter.windows(args.buf) or nil
         end,
       })
       handlers[#handlers + 1] = api.nvim_create_autocmd("BufWipeout", {
         group = group,
         desc = "Release stable fold buffer state",
         callback = function(args)
-          reload_windows[args.buf] = nil
+          reload_windows[args.buf], read[args.buf] = nil, nil
           callbacks.deleted(args.buf)
         end,
       })

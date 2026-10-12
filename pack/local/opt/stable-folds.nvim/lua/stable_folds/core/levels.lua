@@ -14,6 +14,21 @@ function M.events(ranges, minlines)
   return starts, stops
 end
 
+local plain, opening = {}, {}
+
+---@param depth integer
+---@param start boolean
+---@return string
+local function label(depth, start)
+  local cache = start and opening or plain
+  local value = cache[depth]
+  if not value then
+    value = (start and ">" or "") .. depth
+    cache[depth] = value
+  end
+  return value
+end
+
 ---Keep the native expression convention for captures meeting on the same line.
 ---@param ranges StableFoldsRange[]
 ---@param count integer
@@ -26,17 +41,11 @@ function M.build(ranges, count, minlines, nestmax)
   for line = 1, count do
     local start, stop = starts[line] or 0, stops[line] or 0
     depth = depth - previous_stop + start
-    local prefix = ""
-    if start > 0 then
-      prefix = ">"
-      if stop > 0 then
-        depth, stop = depth - stop, 0
-      end
+    if start > 0 and stop > 0 then
+      depth, stop = depth - stop, 0
     end
-    if depth > nestmax or nestmax == 0 then
-      prefix = ""
-    end
-    result[line] = prefix .. tostring(math.max(0, math.min(depth, nestmax)))
+    local visible = start > 0 and depth <= nestmax and nestmax ~= 0
+    result[line] = label(math.max(0, math.min(depth, nestmax)), visible)
     previous_stop = stop
   end
   return result

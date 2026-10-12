@@ -45,21 +45,6 @@ function M.normalize(input, count)
   return result
 end
 
----Track all candidate headers, independently of a window's fold options.
----@param ranges StableFoldsRange[]
----@param lines string[]
----@return StableFoldsHeader[]
-function M.headers(ranges, lines)
-  local result, seen = {}, {}
-  for _, range in ipairs(ranges) do
-    if not seen[range.start] then
-      seen[range.start] = true
-      result[#result + 1] = { line = range.start, header = lines[range.start] }
-    end
-  end
-  return result
-end
-
 ---Translate the frozen native fold tree while on_bytes inspects its flags.
 ---@param input StableFoldsRange[]
 ---@param edit StableFoldsEdit

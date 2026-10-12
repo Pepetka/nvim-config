@@ -274,4 +274,35 @@ test("API line and text insertions above folds preserve state without synthetic 
   closed("n")
 end)
 
+test("closed folds temporarily nested beyond foldnestmax regain their state", function()
+  execute([[
+    vim.bo.filetype = "javascript"
+    require("stable_folds").attach()
+    vim.wo.foldnestmax = 1
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, {
+      "function x() {", "  return 0;", "}", "function first() {", "  return 1;", "}", "",
+      "function second() {", "  return 2;", "}",
+    })
+    require("stable_folds").refresh()
+    vim.cmd("4foldclose | 8foldclose")
+    vim.api.nvim_win_set_cursor(0, { 3, 0 })
+  ]])
+  local function states()
+    return execute("return { vim.fn.foldclosed(4), vim.fn.foldclosed(8) }")
+  end
+  t.equal(states(), { 4, 8 })
+  input("x")
+  input("u")
+  t.equal(states(), { 4, 8 })
+  input("xP")
+  t.equal(states(), { 4, 8 })
+end)
+
+test("substituting part of a closed header keeps it closed", function()
+  input(":%s/first/renamed/<CR>")
+  closed("n")
+  input(":%s/() *$/(arg)/<CR>")
+  closed("n")
+end)
+
 t.run("stable-folds interactive")

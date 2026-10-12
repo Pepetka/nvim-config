@@ -78,13 +78,6 @@ t.test("ranges are deduplicated globally and ordered without mutating input", fu
   t.equal(input, original)
 end)
 
-t.test("candidate headers are independent of nesting and size limits", function()
-  t.equal(ranges.headers({ { start = 1, stop = 6 }, { start = 1, stop = 4 }, { start = 2, stop = 3 } }, { "a", "b" }), {
-    { line = 1, header = "a" },
-    { line = 2, header = "b" },
-  })
-end)
-
 t.test("levels keep boundaries, nesting and gaps", function()
   t.equal(
     levels.build({ { start = 1, stop = 4 }, { start = 2, stop = 3 }, { start = 6, stop = 7 } }, 8, 1, 2),
@@ -155,6 +148,41 @@ t.test("colliding positions with identical headers are treated conservatively", 
   )
   t.equal(plan.marks, { { line = 1, header = "a", new = false } })
   t.equal(plan.delete, { 1, 2 })
+end)
+
+t.test("a valid mark keeps its identity when the header is edited in place", function()
+  local plan = tracking.match({ { id = 3, header = "function first()", line = 2, new = false } }, {
+    { line = 2, header = "function renamed()" },
+  }, true)
+  t.equal(plan, {
+    marks = { { id = 3, line = 2, header = "function renamed()", new = false } },
+    delete = {},
+  })
+end)
+
+t.test("an invalidated mark matches only an identical header", function()
+  local old = { { id = 3, header = "function first()", line = 2, new = false, invalid = true } }
+  t.equal(tracking.match(old, { { line = 2, header = "function other()" } }, true), {
+    marks = { { line = 2, header = "function other()", new = true } },
+    delete = { 3 },
+  })
+  t.equal(tracking.match(old, { { line = 2, header = "function first()" } }, true), {
+    marks = { { id = 3, line = 2, header = "function first()", new = false } },
+    delete = {},
+  })
+end)
+
+t.test("states without a visible start stay dormant until it reappears", function()
+  local positions = {
+    { id = 1, header = "a", line = 1, new = false },
+    { id = 2, header = "b", line = 3, new = false },
+    { id = 3, header = "c", new = false },
+  }
+  local states = { [1] = true, [2] = true, [3] = false }
+  local hidden = { ">1", "1", "1", "1" }
+  t.equal(tracking.restore(positions, states, hidden), { { line = 1, closed = true } })
+  t.equal(tracking.dormant(positions, states, hidden), { [2] = true })
+  t.equal(tracking.dormant(positions, states, { ">1", "1", ">1", "1" }), nil)
 end)
 
 t.test("removed marks are deleted and new baselines do not auto-open folds", function()
@@ -342,6 +370,8 @@ t.test("invalid enum, boolean and size options fall back independently", functio
     { new_folds = "closed" },
     { new_folds = false },
     { include_injections = 0 },
+    { include_injections = { markdown = "no" } },
+    { include_injections = { true } },
     { notify_errors = "false" },
     { max_lines = -1 },
     { max_bytes = 0.5 },
@@ -354,6 +384,19 @@ t.test("invalid enum, boolean and size options fall back independently", functio
       t.equal(opts[key], config.defaults()[key])
     end
   end
+end)
+
+t.test("injections can be disabled for selected host languages", function()
+  local input = { markdown = false, lua = true }
+  local opts, messages = config.normalize({ include_injections = input })
+  t.equal(messages, {})
+  input.lua = false
+  t.equal(opts.include_injections, { markdown = false, lua = true })
+  t.equal(config.injections(opts, "markdown"), false)
+  t.equal(config.injections(opts, "lua"), true)
+  t.equal(config.injections(opts, "javascript"), true)
+  t.equal(config.injections(config.defaults(), "markdown"), true)
+  t.equal(config.injections(config.normalize({ include_injections = false }), "lua"), false)
 end)
 
 t.test("size limits are inclusive, independent and disabled by zero", function()

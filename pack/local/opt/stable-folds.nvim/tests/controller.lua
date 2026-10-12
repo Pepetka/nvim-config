@@ -144,7 +144,7 @@ t.test("query changes at the same tick are refreshed without auto-opening new fo
   t.equal(state.opened[10], {})
 end)
 
-t.test("filter errors never escape and notifications are deduplicated per revision", function()
+t.test("filter errors never escape and repeated notifications are suppressed across revisions", function()
   local folds, _, state = fixtures.new()
   folds.setup({
     filter = function()
@@ -156,11 +156,31 @@ t.test("filter errors never escape and notifications are deduplicated per revisi
   end
   t.equal(#state.messages, 1)
   t.equal(state.parses, 0)
-  fixtures.tick(state, 2)
-  t.equal(folds.expr(1), "0")
-  t.equal(#state.messages, 2)
+  for tick = 2, 11 do
+    fixtures.tick(state, tick)
+    t.equal(folds.expr(1), "0")
+  end
+  t.equal(#state.messages, 1)
   folds.setup()
   t.equal(folds.expr(1), ">1")
+end)
+
+t.test("a persistent parse error notifies again only after a successful snapshot", function()
+  local folds, _, state = fixtures.new()
+  folds.setup()
+  state.fail = "collect"
+  for tick = 2, 6 do
+    fixtures.tick(state, tick)
+    t.equal(folds.expr(1), "0")
+  end
+  t.equal(#state.messages, 1)
+  state.fail = nil
+  fixtures.tick(state, 7)
+  t.equal(folds.expr(1), ">1")
+  state.fail = "collect"
+  fixtures.tick(state, 8)
+  t.equal(folds.expr(1), "0")
+  t.equal(#state.messages, 2)
 end)
 
 t.test("snapshot failures are cached safely and recover after explicit refresh", function()
@@ -367,6 +387,83 @@ t.test("pre-edit states follow reordered headers and survive several edits befor
   local restored = state.restored[10]
   assert(state.callbacks).changed(1)
   assert(state.restored[10] == restored)
+end)
+
+t.test("edits are not tracked before setup, so every revision parses fully", function()
+  local folds, _, state = fixtures.new()
+  t.equal(folds.expr(1), ">1")
+  t.equal(state.watchers[1], nil)
+  state.text[1] = { "-- shifted", "first", "a", "b", "end", "", "second", "c", "end" }
+  state.raw[1] = {
+    { start_row = 1, start_col = 0, end_row = 4, end_col = 3 },
+    { start_row = 6, start_col = 0, end_row = 8, end_col = 3 },
+  }
+  fixtures.tick(state, 2)
+  t.equal(folds.expr(1), "0")
+  t.equal(folds.expr(2), ">1")
+  folds.setup()
+  folds.expr(1)
+  assert(state.watchers[1])
+end)
+
+t.test("an edit committed without TextChanged replaces translated levels", function()
+  local folds, _, state = fixtures.new()
+  folds.setup()
+  folds.expr(1)
+  local edit = { start_row = 4, start_col = 0, old_rows = 0, new_rows = 4 }
+  state.text[1] = { "first", "a", "b", "end", "zero", "x", "y", "end", "", "second", "c", "end" }
+  state.raw[1] = {
+    { start_row = 0, start_col = 0, end_row = 3, end_col = 3 },
+    { start_row = 4, start_col = 0, end_row = 7, end_col = 3 },
+    { start_row = 9, start_col = 0, end_row = 11, end_col = 3 },
+  }
+  state.watchers[1](edit)
+  fixtures.tick(state, 2)
+  t.equal(folds.expr(5), "0")
+  t.equal(folds.expr(10), ">1")
+  assert(state.committed[1])()
+  t.equal(folds.expr(5), ">1")
+  t.equal(folds.expr(10), ">1")
+end)
+
+t.test("states of identities nested beyond foldnestmax survive until their fold reappears", function()
+  local folds, _, state = fixtures.new()
+  state.enabled[20] = nil
+  folds.setup()
+  folds.expr(1)
+  local original = t.copy(state.raw[1])
+  state.closed = { [10] = { [2] = true } }
+  state.watchers[1]()
+  state.raw[1] = {
+    { start_row = 0, start_col = 0, end_row = 7, end_col = 3 },
+    { start_row = 5, start_col = 0, end_row = 7, end_col = 3 },
+  }
+  fixtures.tick(state, 2)
+  assert(state.callbacks).changed(1)
+  t.equal(folds.expr(6), "1")
+  t.equal(state.restored[10] or {}, {})
+  -- The adapter reports nothing for a start without a native fold.
+  state.closed = { [10] = {} }
+  state.watchers[1]()
+  state.raw[1] = original
+  fixtures.tick(state, 3)
+  assert(state.callbacks).changed(1)
+  t.equal(state.restored[10], { { line = 6, closed = true } })
+  state.closed = { [10] = {} }
+  state.watchers[1]()
+  fixtures.tick(state, 4)
+  assert(state.callbacks).changed(1)
+  t.equal(state.restored[10], {})
+end)
+
+t.test("injections are resolved for the buffer's host language", function()
+  local folds, _, state = fixtures.new()
+  folds.setup({ include_injections = { lua = false } })
+  folds.expr(1)
+  t.equal(state.injections, false)
+  folds.setup({ include_injections = { markdown = false } })
+  folds.expr(1)
+  t.equal(state.injections, true)
 end)
 
 t.test("disposed watchers cannot capture state into a later setup", function()

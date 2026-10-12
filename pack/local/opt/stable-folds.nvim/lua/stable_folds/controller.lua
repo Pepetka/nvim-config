@@ -9,7 +9,7 @@ M.foldexpr = config.foldexpr
 ---@return StableFoldsController
 function M.new(adapter)
   local options = config.defaults()
-  local active, refreshing, evaluating, capturing = true, false, false, false
+  local active, refreshing, evaluating, capturing, watching = true, false, false, false, false
   local generation = 0
   ---@type table<integer, StableFoldsBuffer>
   local buffers = {}
@@ -30,6 +30,16 @@ function M.new(adapter)
   local controller = { foldexpr = M.foldexpr }
   ---@type fun(buf: integer, force: boolean): nil
   local refresh
+
+  ---@param buf integer
+  ---@return nil
+  local function changed(buf)
+    evaluation = nil
+    if buffers[buf] then
+      buffers[buf].pending_snapshot = nil
+    end
+    refresh(buf, false)
+  end
 
   ---@generic T
   ---@param win integer
@@ -56,7 +66,7 @@ function M.new(adapter)
     end
     local message = tostring(err):match("^[^\r\n]*") or "unknown error"
     local buf = context and context.buf or 0
-    local key = tostring(context and context.tick) .. ":" .. tostring(context and context.lang) .. ":" .. message
+    local key = tostring(context and context.lang) .. ":" .. message
     if errors[buf] ~= key then
       errors[buf] = key
       pcall(adapter.notify, "stable-folds: " .. message)
@@ -133,11 +143,13 @@ function M.new(adapter)
       if edit then
         state.pending_snapshot = entry
       end
+      state.hidden = state.hidden or {}
       for _, win in ipairs(adapter.windows(buf)) do
         local previous = state.closed[win] or {}
+        local hidden = state.hidden[win] or {}
         local unresolved = {}
         for _, mark in ipairs(state.tracking.marks) do
-          if previous[mark.id] == nil then
+          if previous[mark.id] == nil and not hidden[mark.id] then
             unresolved[mark.id] = true
           end
         end
@@ -159,6 +171,9 @@ function M.new(adapter)
               local row = mark.old_line or mark.line
               local level = row and views[win].levels[row]
               mark.level = level and tonumber(level:match("^>(%d+)$")) or nil
+              -- Identities beyond foldnestmax or minlines have no native fold; inspect them once.
+              mark.hidden = mark.level == nil or nil
+              hidden[mark.id] = mark.hidden
             end
           end
           local observed = with_view(win, views[win], function()
@@ -177,6 +192,7 @@ function M.new(adapter)
           end
         end
         state.closed[win] = previous
+        state.hidden[win] = next(hidden) and hidden or nil
       end
     end)
     capturing = false
@@ -193,11 +209,17 @@ function M.new(adapter)
     local previous = state.tracking
     if previous and (previous.lang ~= context.lang or previous.filetype ~= context.filetype) then
       adapter.clear(context.buf)
-      state.closed = nil
+      state.closed, state.hidden, state.dormant = nil, nil, nil
       state.positions = nil
       previous = nil
     end
     local old = previous and (previous.positions or positions(context.buf, state, context.tick)) or {}
+    if previous and (previous.positions or state.reread) then
+      -- Text was reloaded from disk; old rows identify a fold only with the same header.
+      for _, mark in ipairs(old) do
+        mark.invalid = true
+      end
+    end
     local plan = tracking.match(old, entry.headers, previous ~= nil and previous.tick ~= context.tick)
     if previous and previous.positions then
       -- Saved positions describe an unloaded tree; its extmarks have been cleared.
@@ -209,7 +231,7 @@ function M.new(adapter)
     if not ok then
       -- Roll back only an extmark transaction; parse errors leave old identities intact.
       pcall(adapter.clear, context.buf)
-      state.tracking, state.closed, state.positions = nil, nil, nil
+      state.tracking, state.closed, state.hidden, state.dormant, state.positions = nil, nil, nil, nil, nil
       error(marks, 0)
     end
     state.tracking = entry.available
@@ -220,6 +242,7 @@ function M.new(adapter)
           marks = marks,
         }
       or nil
+    state.reread = nil
     state.positions = {}
     state.positions_tick = context.tick
     for index, mark in ipairs(marks) do
@@ -232,7 +255,7 @@ function M.new(adapter)
   ---@param owner integer
   ---@return StableFoldsSnapshot?
   local function collect(context, state, owner)
-    local raw = adapter.collect(context.buf, context.lang, options.include_injections)
+    local raw = adapter.collect(context.buf, context.lang, config.injections(options, context.lang))
     local count = adapter.line_count(context.buf)
     local normalized = ranges.normalize(raw or {}, count)
     local headers = #normalized > 0 and adapter.headers(context.buf, normalized) or {}
@@ -299,6 +322,9 @@ function M.new(adapter)
       return nil
     end
     state.snapshot = result
+    if result then
+      errors[context.buf] = nil
+    end
     return result
   end
 
@@ -340,7 +366,8 @@ function M.new(adapter)
       end
     end
     state.limited = nil
-    if not state.cancel then
+    -- Without setup no TextChanged handler would ever commit translated edit levels.
+    if watching and not state.cancel then
       state.cancel = adapter.watch(context.buf, function(edit)
         state.positions, evaluation = nil, nil
         before_change(context.buf, state, edit)
@@ -350,6 +377,10 @@ function M.new(adapter)
           state.pending_snapshot = nil
           forget_views(context.buf)
           refresh(context.buf, false)
+        end
+      end, function()
+        if active and buffers[context.buf] == state then
+          changed(context.buf)
         end
       end)
     end
@@ -431,6 +462,13 @@ function M.new(adapter)
     if current and state then
       state.closed = state.closed or {}
       local pending = state.closed[win] or {}
+      ---@type table<integer, boolean>
+      local dormant = state.dormant and state.dormant[win] or {}
+      for id, closed in pairs(dormant) do
+        if pending[id] == nil then
+          pending[id] = closed
+        end
+      end
       for _, mark in ipairs(starts) do
         if mark.new and mark.line and (current.levels[mark.line] or ""):sub(1, 1) == ">" then
           if options.new_folds == "open" then
@@ -456,8 +494,14 @@ function M.new(adapter)
       if current and state then
         local pending = state.closed and state.closed[win]
         adapter.restore(win, tracking.restore(starts, pending, current.levels))
+        -- Keep states of identities temporarily without a native fold, e.g. nested beyond foldnestmax.
+        state.dormant = state.dormant or {}
+        state.dormant[win] = tracking.dormant(starts, pending, current.levels)
         if state.closed then
           state.closed[win] = nil
+        end
+        if state.hidden then
+          state.hidden[win] = nil
         end
       end
       return true
@@ -611,7 +655,7 @@ function M.new(adapter)
   ---@return nil
   function controller.teardown()
     generation = generation + 1
-    active = false
+    active, watching = false, false
     pending, requested = {}, {}
     for buf in pairs(buffers) do
       clear(buf)
@@ -652,7 +696,7 @@ function M.new(adapter)
     local ok, err = pcall(adapter.install, {
       unloaded = function(buf)
         if not installed() then
-          return
+          return false
         end
         local state = buffers[buf]
         if state then
@@ -665,23 +709,26 @@ function M.new(adapter)
         if state and state.tracking then
           -- :edit! unloads before BufReadPre. Keep only identities and flags;
           -- native watchers, extmarks and text snapshots are released now.
-          suspended[buf] = { tracking = state.tracking, closed = state.closed, reloading = true }
+          suspended[buf] = {
+            tracking = state.tracking,
+            closed = state.closed,
+            dormant = state.dormant,
+            reloading = true,
+            reread = true,
+          }
         end
+        return state ~= nil
       end,
       reading = function(buf)
         local state = buffers[buf] or suspended[buf]
         if installed() and state then
           before_change(buf, state)
-          state.reloading = true
+          state.reloading, state.reread = true, true
         end
       end,
       changed = function(buf)
         if installed() then
-          evaluation = nil
-          if buffers[buf] then
-            buffers[buf].pending_snapshot = nil
-          end
-          refresh(buf, false)
+          changed(buf)
         end
       end,
       entered = function(buf)
@@ -726,14 +773,13 @@ function M.new(adapter)
       closed = function(win)
         if installed() then
           views[win], applied[win] = nil, nil
-          for _, state in pairs(buffers) do
-            if state.closed then
-              state.closed[win] = nil
-            end
-          end
-          for _, state in pairs(suspended) do
-            if state.closed then
-              state.closed[win] = nil
+          for _, states in ipairs({ buffers, suspended }) do
+            for _, state in pairs(states) do
+              for _, field in ipairs({ "closed", "hidden", "dormant" }) do
+                if state[field] then
+                  state[field][win] = nil
+                end
+              end
             end
           end
         end
@@ -751,6 +797,7 @@ function M.new(adapter)
       controller.teardown()
       report(err)
     else
+      watching = true
       for buf in pairs(affected) do
         if installed() then
           refresh(buf, false)

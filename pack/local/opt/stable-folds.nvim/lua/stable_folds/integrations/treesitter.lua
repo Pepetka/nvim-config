@@ -9,7 +9,15 @@ function M.collect(buf, lang, include_injections)
   if not lang then
     return nil
   end
-  local ok, parser = pcall(vim.treesitter.get_parser, buf, lang)
+  -- get_parser() would replace a buffer parser started for another language, e.g. tsx for javascript.
+  local highlighter = vim.treesitter.highlighter.active[buf]
+  local tree = highlighter and highlighter.tree
+  local ok, parser = true, nil
+  if tree and tree:lang() ~= lang and vim.treesitter.language.add(lang) then
+    parser = tree
+  else
+    ok, parser = pcall(vim.treesitter.get_parser, buf, lang)
+  end
   if not ok or not parser then
     return nil
   end

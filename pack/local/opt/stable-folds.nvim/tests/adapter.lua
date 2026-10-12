@@ -40,6 +40,7 @@ local function callbacks()
     end,
     unloaded = function(buf)
       events[#events + 1] = "unloaded:" .. buf
+      return false
     end,
     changed = function(buf)
       events[#events + 1] = "changed:" .. buf
@@ -77,7 +78,7 @@ t.test("native contexts resolve current, explicit and invalid windows and buffer
   t.equal(adapter.context(-1), nil)
   t.equal(adapter.buffer(0), buf)
   t.equal(adapter.buffer(-1), nil)
-  t.equal(adapter.lines(buf)[1], "local function f()")
+  t.equal(adapter.line_count(buf), api.nvim_buf_line_count(buf))
   adapter.uninstall()
 end)
 
@@ -150,14 +151,12 @@ t.test("callbacks dispatch window, buffer, query and option lifecycle events", f
   api.nvim_exec_autocmds("OptionSet", { pattern = "foldminlines" })
   api.nvim_exec_autocmds("OptionSet", { pattern = "foldnestmax" })
   api.nvim_exec_autocmds("User", { pattern = "TSUpdate" })
+  -- Insert changes wait for InsertLeave; a first read does not restore expressions.
   t.equal(events, {
     "changed:" .. buf,
     "changed:" .. buf,
     "changed:" .. buf,
-    "changed:" .. buf,
-    "changed:" .. buf,
     "reading:" .. buf,
-    "changed:" .. buf,
     "entered:" .. buf,
     "reset:" .. buf,
     "unloaded:" .. buf,
@@ -179,7 +178,7 @@ t.test("uninstall preserves foreign handlers added to the same group", function(
     if name:match("^StableFoldStarts") then
       -- Namespace suffix and augroup suffix belong to the same adapter instance.
       local suffix = name:sub(#"StableFoldStarts" + 1)
-      local ok, entries = pcall(api.nvim_get_autocmds, { group = "SynchronousFolds" .. suffix })
+      local ok, entries = pcall(api.nvim_get_autocmds, { group = "StableFolds" .. suffix })
       if ok and #entries > 0 then
         group = entries[1].group
       end
@@ -227,7 +226,46 @@ t.test("Tree-sitter extraction returns plain ranges and handles missing language
   t.equal(ranges.normalize(assert(treesitter.collect(buf, "lua")), 4), { { start = 1, stop = 4 } })
   t.equal(ranges.normalize(assert(treesitter.collect(buf, "lua", false)), 4), { { start = 1, stop = 4 } })
   t.equal(treesitter.collect(buf, nil), nil)
+  vim.treesitter.stop(buf)
   t.equal(treesitter.collect(buf, "stable_folds_missing_parser"), nil)
+end)
+
+t.test("Tree-sitter extraction keeps the highlighter's buffer parser", function()
+  local buf = buffer()
+  vim.treesitter.start(buf, "lua")
+  local parser = assert(vim.treesitter.get_parser(buf))
+  t.equal(ranges.normalize(assert(treesitter.collect(buf, "json")), 4), { { start = 1, stop = 4 } })
+  t.equal(vim.treesitter.get_parser(buf, nil, { error = false }), parser)
+end)
+
+t.test("a reloaded file restores the expression only in previously attached windows", function()
+  local adapter = integration.new()
+  local handler, events = callbacks()
+  local unloaded = handler.unloaded
+  handler.unloaded = function(buf)
+    unloaded(buf)
+    return true
+  end
+  local path = vim.fn.tempname() .. ".lua"
+  vim.fn.writefile({ "local x = 1" }, path)
+  adapter.install(handler)
+  vim.api.nvim_create_autocmd("FileType", {
+    pattern = "lua",
+    once = true,
+    command = "setlocal foldmethod=indent",
+  })
+  adapter.attach(0)
+  vim.cmd.edit(path)
+  local buf = api.nvim_get_current_buf()
+  t.equal(vim.wo.foldmethod, "indent")
+  t.equal(vim.tbl_contains(events, "changed:" .. buf), false)
+  adapter.attach(0)
+  vim.cmd("edit")
+  t.equal(vim.wo.foldmethod, "expr")
+  t.equal(vim.tbl_contains(events, "changed:" .. buf), true)
+  adapter.uninstall()
+  vim.cmd("bwipeout!")
+  vim.fn.delete(path)
 end)
 
 t.test("fold queries respect metadata offsets and quantified captures", function()

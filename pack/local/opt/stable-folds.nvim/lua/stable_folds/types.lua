@@ -10,7 +10,7 @@
 ---@class StableFoldsOptions
 ---@field filter? fun(buf: integer): boolean
 ---@field new_folds? "open"|"inherit" Defaults to "open"; "inherit" uses each window's foldlevel.
----@field include_injections? boolean Defaults to true.
+---@field include_injections? boolean|table<string, boolean> Defaults to true; a table maps host languages, missing ones are included.
 ---@field max_lines? integer Nonnegative; 0 disables the limit.
 ---@field max_bytes? integer Nonnegative; 0 disables the limit. UTF-8 bytes including line terminators.
 ---@field notify_errors? boolean Defaults to true; controls errors and configuration warnings.
@@ -18,7 +18,7 @@
 ---@class StableFoldsConfig
 ---@field filter fun(buf: integer): boolean
 ---@field new_folds "open"|"inherit"
----@field include_injections boolean
+---@field include_injections boolean|table<string, boolean>
 ---@field max_lines integer
 ---@field max_bytes integer
 ---@field notify_errors boolean
@@ -80,6 +80,8 @@
 ---@field line? integer Missing when the extmark no longer exists.
 ---@field level? integer Cached native fold depth for pre-read state inspection.
 ---@field old_line? integer Position before the byte edit.
+---@field invalid? boolean The whole header was deleted; the mark matches only the same text.
+---@field hidden? boolean The window view has no visible fold start for this identity.
 
 ---@class StableFoldsPlannedMark: StableFoldsHeader
 ---@field id? integer
@@ -110,7 +112,10 @@
 ---@field tracking? StableFoldsTracking
 ---@field cancel? StableFoldsAction
 ---@field closed? table<integer, table<integer, boolean>> Window -> mark -> pre-edit closed state.
+---@field hidden? table<integer, table<integer, boolean>> Window -> marks without a native fold, inspected once per burst.
+---@field dormant? table<integer, table<integer, boolean>> Window -> states of identities without a visible start.
 ---@field reloading? boolean Disk read in progress; defer FileType reconciliation until on_reload.
+---@field reread? boolean Text was read from disk; old marks match only identical headers.
 
 ---@class StableFoldsFoldState
 ---@field line integer
@@ -120,11 +125,13 @@
 ---@field callback? StableFoldsBeforeChange
 ---@field reloaded? StableFoldsAction
 ---@field ready_tick? integer
+---@field committed? StableFoldsAction
+---@field scheduled? boolean
 
 ---@class StableFoldsCallbacks
 ---@field changed fun(buf: integer): nil
 ---@field reading fun(buf: integer): nil
----@field unloaded fun(buf: integer): nil
+---@field unloaded fun(buf: integer): boolean Whether the buffer had stable fold state.
 ---@field entered fun(buf: integer): nil
 ---@field reset fun(buf: integer): nil
 ---@field deleted fun(buf: integer): nil
@@ -138,7 +145,6 @@
 ---@field settled fun(buf: integer): nil Mark a completed API edit as ready for an explicit refresh.
 ---@field context fun(win?: integer): StableFoldsContext?
 ---@field buffer fun(buf?: integer): integer?
----@field lines fun(buf: integer): string[]
 ---@field line_count fun(buf: integer): integer
 ---@field headers fun(buf: integer, ranges: StableFoldsRange[]): StableFoldsHeader[]
 ---@field size fun(buf: integer): StableFoldsSize
@@ -151,7 +157,7 @@
 ---@field attach fun(win?: integer): integer? Attached window, or nil if invalid.
 ---@field recompute fun(win: integer): nil
 ---@field open fun(win: integer, lines: integer[]): nil
----@field watch fun(buf: integer, before_change: StableFoldsBeforeChange, reloaded?: StableFoldsAction): StableFoldsAction
+---@field watch fun(buf: integer, before_change: StableFoldsBeforeChange, reloaded?: StableFoldsAction, committed?: StableFoldsAction): StableFoldsAction
 ---@field closed fun(win: integer, positions: StableFoldsPosition[], adjust?: fun(shifted: boolean): nil): table<integer, boolean>
 ---@field restore fun(win: integer, states: StableFoldsFoldState[]): nil
 ---@field install fun(callbacks: StableFoldsCallbacks): nil
