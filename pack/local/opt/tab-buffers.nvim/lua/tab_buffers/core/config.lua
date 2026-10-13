@@ -36,11 +36,21 @@ end
 ---@return TabBuffersConfig
 function M.behavior(opts)
   assert(opts == nil or type(opts) == "table", "options must be a table")
+  validation.known(opts or {}, {
+    close_empty_tab = true,
+    wrap = true,
+    replacement = true,
+    bootstrap_hidden_buffers = true,
+    delete = true,
+    buffer_filter = true,
+    tab_filter = true,
+  }, "setting")
   local config = lists.merge({
     close_empty_tab = true,
     wrap = true,
     replacement = "right",
     bootstrap_hidden_buffers = true,
+    delete = "bdelete",
   }, opts or {})
   for _, name in ipairs({ "close_empty_tab", "wrap", "bootstrap_hidden_buffers" }) do
     assert(type(config[name]) == "boolean", name .. " must be a boolean")
@@ -49,6 +59,7 @@ function M.behavior(opts)
     config.replacement == "right" or config.replacement == "left" or config.replacement == "last_used",
     "invalid replacement policy"
   )
+  assert(config.delete == "bdelete" or config.delete == "wipeout", "delete must be bdelete or wipeout")
   for _, name in ipairs({ "buffer_filter", "tab_filter" }) do
     assert(config[name] == nil or type(config[name]) == "function", name .. " must be a function")
   end
@@ -59,10 +70,22 @@ end
 ---@return TabBuffersTablineConfig
 function M.normalize(opts)
   assert(opts == nil or type(opts) == "table", "options must be a table")
+  validation.known(opts or {}, {
+    visibility = true,
+    tab_width_ratio = true,
+    icons = true,
+    icon_colors = true,
+    max_name_length = true,
+    padding = true,
+    offsets = true,
+    hide_filetypes = true,
+    highlights = true,
+  }, "setting")
   local config = lists.merge({
     visibility = "auto",
     tab_width_ratio = 1 / 3,
     icons = true,
+    icon_colors = "all",
     max_name_length = 30,
     padding = 0,
     offsets = {},
@@ -81,6 +104,10 @@ function M.normalize(opts)
   validation.integer(config.padding, "padding")
   assert(config.padding >= 0, "padding must be a nonnegative integer")
   assert(type(config.icons) == "boolean", "icons must be a boolean")
+  assert(
+    config.icon_colors == "all" or config.icon_colors == "active" or config.icon_colors == "none",
+    "icon_colors must be all, active or none"
+  )
   config.offsets = strings(config.offsets, "offsets")
   config.hide_filetypes = strings(config.hide_filetypes, "hide_filetypes")
   assert(

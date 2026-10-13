@@ -50,6 +50,19 @@ function M.build(snapshot, config, previous, serial, metrics, prepared_labels)
     map[next_target] = item
     local text = item.text:gsub("%%", "%%%%")
     local border = item.text:sub(1, #"│")
+    -- Color only the glyph; clipping from the left may have removed it.
+    local glyph = item.icon_highlight and border .. " " .. item.icon .. " "
+    if glyph and text:sub(1, #glyph) == glyph then
+      text = border
+        .. " %#"
+        .. item.icon_highlight
+        .. "#"
+        .. item.icon
+        .. "%#TabBuffers"
+        .. item.highlight
+        .. "# "
+        .. text:sub(#glyph + 1)
+    end
     if border == "│" or border == "▎" then
       text = "%#TabBuffers"
         .. (item.active and "ActiveBorder" or "Border")
@@ -139,12 +152,17 @@ function M.build(snapshot, config, previous, serial, metrics, prepared_labels)
       if selected then
         anchor = index
       end
+      local colored = icon ~= ""
+        and entry.icon_highlight ~= nil
+        and (config.icon_colors == "all" or config.icon_colors == "active" and selected)
       items[#items + 1] = {
         kind = "buffer",
         id = entry.id,
         tab = tab,
         active = selected,
         highlight = selected and "Active" or visible[entry.id] and "Visible" or "Buffer",
+        icon = colored and icon or nil,
+        icon_highlight = colored and entry.icon_highlight or nil,
         text = (selected and "▎ " or "│ ")
           .. (icon ~= "" and icon .. " " or "")
           .. labels[entry.id]

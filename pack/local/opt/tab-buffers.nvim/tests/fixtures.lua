@@ -205,6 +205,8 @@ function M.editor()
     return true
   end
   function adapter.guard_closing() end
+  function adapter.track() end
+  function adapter.sweep() end
   function adapter.restore_closing()
     state.restores = state.restores + 1
   end

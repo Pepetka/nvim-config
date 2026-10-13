@@ -33,7 +33,7 @@ function M.new()
   local original
   ---@type integer?
   local visibility
-  ---@type table<integer, { name: string, icon: string }>
+  ---@type table<integer, { name: string, icon: string, highlight?: string }>
   local icon_cache = {}
   local icons_attempted = false
   ---@type TabBuffersIcons?
@@ -54,7 +54,10 @@ function M.new()
 
   ---@return nil
   function adapter.redraw()
-    vim.cmd.redrawtabline()
+    -- Without a UI there is nothing to draw; headless redraws after resizing can corrupt Nvim 0.12 memory.
+    if #api.nvim_list_uis() > 0 then
+      vim.cmd.redrawtabline()
+    end
   end
 
   ---@param input TabBuffersHighlights|fun(): TabBuffersHighlights
@@ -179,18 +182,21 @@ function M.new()
     local icons = config.icons and icon_provider or nil
     for _, buf in ipairs(buffers.buffers(tab)) do
       local name, icon = api.nvim_buf_get_name(buf), ""
+      ---@type string?
+      local icon_highlight
       if icons then
         local stored = icon_cache[buf]
         if not stored or stored.name ~= name then
-          stored = {
-            name = name,
-            icon = icons.get_icon(vim.fs.basename(name), vim.fn.fnamemodify(name, ":e"), { default = true }) or "",
-          }
+          local glyph, group = icons.get_icon(vim.fs.basename(name), vim.fn.fnamemodify(name, ":e"), { default = true })
+          -- The group name is embedded in the tabline expression, so accept only plain names.
+          local valid = type(group) == "string" and group:match("^[%w_.@]+$") ~= nil
+          stored = { name = name, icon = glyph or "", highlight = valid and group or nil }
           icon_cache[buf] = stored
         end
-        icon = stored.icon
+        icon, icon_highlight = stored.icon, stored.highlight
       end
-      snapshot.entries[#snapshot.entries + 1] = { id = buf, name = name, modified = vim.bo[buf].modified, icon = icon }
+      snapshot.entries[#snapshot.entries + 1] =
+        { id = buf, name = name, modified = vim.bo[buf].modified, icon = icon, icon_highlight = icon_highlight }
     end
     for buf in pairs(icon_cache) do
       if not api.nvim_buf_is_valid(buf) then

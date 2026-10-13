@@ -8,9 +8,17 @@ function M.install(callbacks)
   sequence = sequence + 1
   local group = api.nvim_create_augroup("TabBuffersNvim" .. sequence, { clear = true })
   local ok, err = pcall(function()
+    api.nvim_create_autocmd({ "BufEnter", "BufWinEnter" }, {
+      group = group,
+      callback = function(args)
+        if callbacks.entered then
+          callbacks.entered(args.buf)
+        else
+          callbacks.changed()
+        end
+      end,
+    })
     api.nvim_create_autocmd({
-      "BufEnter",
-      "BufWinEnter",
       "TabEnter",
       "TabNewEntered",
       "WinEnter",

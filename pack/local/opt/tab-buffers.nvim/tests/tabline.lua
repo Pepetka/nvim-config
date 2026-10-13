@@ -16,7 +16,7 @@ local notify = vim.notify
 vim.notify = function(msg)
   notices[#notices + 1] = msg
 end
-local equal = support.equal
+local equal, raises = support.equal, support.raises
 ---@return nil
 local function drain()
   for _ = 1, 4 do
@@ -215,6 +215,46 @@ test("modified flags, rename, narrow rendering and resize update", function()
   vim.o.columns = 160
   api.nvim_exec_autocmds("VimResized", {})
   assert(rendered().width <= 160)
+end)
+
+test("icon colors apply to all, active or no buffers and survive clipping", function()
+  local provider = package.loaded["nvim-web-devicons"]
+  package.loaded["nvim-web-devicons"] = {
+    get_icon = function(name)
+      return "I", name == "evil.lua" and "Bad#Group" or "TabBuffersTestIcon"
+    end,
+  }
+  local ok, err = pcall(function()
+    local a = file("first.lua")
+    file("second.lua")
+    show(a)
+    ---@param mode TabBuffersIconColors
+    ---@return integer
+    local function colored(mode)
+      line.setup({ icon_colors = mode })
+      drain()
+      local _, count = line.render():gsub("%%#TabBuffersTestIcon#I%%#TabBuffers%w+# ", "")
+      return count
+    end
+    equal(colored("all"), 2)
+    equal(colored("active"), 1)
+    assert(line.render():find("%#TabBuffersTestIcon#I%#TabBuffersActive# first.lua", 1, true))
+    equal(colored("none"), 0)
+    raises(function()
+      ---@diagnostic disable-next-line: assign-type-mismatch
+      line.setup({ icon_colors = "some" })
+    end, "icon_colors must be all, active or none")
+    local evil = file("evil.lua")
+    line.setup({ icon_colors = "all" })
+    show(evil)
+    assert(not line.render():find("Bad#Group", 1, true))
+    vim.o.columns = 8
+    api.nvim_exec_autocmds("VimResized", {})
+    local narrow = rendered()
+    assert(narrow.width <= 8)
+  end)
+  package.loaded["nvim-web-devicons"] = provider
+  assert(ok, err)
 end)
 
 test("clicks use source handles, reject detached targets and preserve changed text", function()
@@ -431,7 +471,12 @@ test("native mouse dispatch opens and closes through the tabline callback", func
     vim.rpcrequest(child, "nvim_input_mouse", "middle", "press", "", 0, 0, position())
     assert(
       vim.wait(1000, function()
-        return not vim.rpcrequest(child, "nvim_buf_is_valid", ids[2])
+        return vim.rpcrequest(
+          child,
+          "nvim_exec_lua",
+          "local b = ... return not vim.api.nvim_buf_is_valid(b) or not vim.bo[b].buflisted",
+          { ids[2] }
+        ) == true
       end, 5),
       "native middle click did not close buffer"
     )

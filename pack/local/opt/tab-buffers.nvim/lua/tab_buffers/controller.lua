@@ -135,6 +135,9 @@ function M.new(adapter)
   local text_buffers = {}
   ---@type table<integer, boolean>
   local changed = {}
+  ---Buffers entered in working windows since the last observation, including transient ones.
+  ---@type TabBuffersEntry[]
+  local entries = {}
   ---@type table<integer, TabBuffersCloseRequest>
   local requests = {}
   ---@type table<integer, integer[]>
@@ -209,6 +212,12 @@ function M.new(adapter)
     end
   end
 
+  ---@param force? boolean
+  ---@return TabBuffersDeleteOptions
+  local function delete_options(force)
+    return { force = force == true, wipe = config.delete == "wipeout" }
+  end
+
   ---@param report TabBuffersResult
   ---@param prefix string
   ---@return nil
@@ -267,7 +276,7 @@ function M.new(adapter)
           reason = "unsaved changes"
         else
           invalidate()
-          local ok, err = pcall(adapter.delete_buffer, buf, { force = candidate.force })
+          local ok, err = pcall(adapter.delete_buffer, buf, delete_options(candidate.force))
           if not ok then
             reason = tostring(err)
           end
@@ -317,8 +326,16 @@ function M.new(adapter)
       return false
     end
     busy = busy + 1
+    -- Reset before observing, so events caused by cleanup effects schedule another pass.
+    local entered = entries
+    dirty, text_buffers, entries = false, {}, {}
     phase = { buffers = {}, tabs = {}, windows = {}, tab_windows = {} }
     local ok, err = pcall(function()
+      for _, entry in ipairs(entered) do
+        if adapter.tab_valid(entry.tab) and managed(entry.tab) and eligible(entry.buf) then
+          attach(entry.tab, entry.buf)
+        end
+      end
       scan_visible()
       local effects = clean_closed()
       for _, tab in ipairs(model:tabs()) do
@@ -362,11 +379,17 @@ function M.new(adapter)
       end
     end)
     invalidate()
-    dirty, text_buffers = false, {}
+    if ok then
+      ok, err = pcall(adapter.sweep)
+    end
     local restored, restore_error = pcall(adapter.restore_closing)
     busy = busy - 1
     if not ok then
       dirty = true
+      for _, entry in ipairs(entries) do
+        entered[#entered + 1] = entry
+      end
+      entries = entered
       error(err, 0)
     end
     if not restored then
@@ -455,7 +478,11 @@ function M.new(adapter)
   ---@param opts TabBuffersOptions
   ---@return TabBuffersContext?, string?
   local function context(opts)
-    local tab = opts.tab or adapter.current_tab()
+    local tab = opts.tab
+    if not tab and opts.win and adapter.window_valid(opts.win) then
+      tab = adapter.window_tab(opts.win)
+    end
+    tab = tab or adapter.current_tab()
     if not adapter.tab_valid(tab) then
       return nil, "invalid tab handle"
     end
@@ -516,6 +543,14 @@ function M.new(adapter)
     local ok, err = pcall(function()
       cancel = adapter.install({
         changed = function()
+          dirty = true
+          schedule()
+        end,
+        entered = function(buf)
+          local win = adapter.current_window()
+          if adapter.window_buffer(win) == buf and context_rules.working(adapter.window(win)) then
+            entries[#entries + 1] = { buf = buf, tab = adapter.window_tab(win) }
+          end
           dirty = true
           schedule()
         end,
@@ -596,7 +631,7 @@ function M.new(adapter)
       end
       adapter.restore_closing()
       model, cancel, initialized = core.new(), nil, false
-      changed, requests, snapshots, recovery_errors, history = {}, {}, {}, {}, {}
+      changed, requests, snapshots, recovery_errors, history, entries = {}, {}, {}, {}, {}, {}
       queued, exiting = false, false
       dirty, text_buffers = true, {}
       config = config_rules.behavior()
@@ -614,7 +649,7 @@ function M.new(adapter)
     adapter.restore_closing()
     assert(cancel)()
     model, cancel, initialized = core.new(), nil, false
-    changed, requests, snapshots, recovery_errors, history = {}, {}, {}, {}, {}
+    changed, requests, snapshots, recovery_errors, history, entries = {}, {}, {}, {}, {}, {}
     queued, exiting = false, false
     dirty, text_buffers = true, {}
     config = config_rules.behavior()
@@ -780,11 +815,38 @@ function M.new(adapter)
       if wrap == nil then
         wrap = config.wrap
       end
-      local buf = model:neighbor(ctx.tab, ctx.buf, offset, wrap)
+      ---@type integer?
+      local buf
+      if opts.buf == nil and not model:contains(ctx.tab, ctx.buf) then
+        -- A draft or foreign buffer enters the tab's list from the matching end.
+        local members = model:buffers(ctx.tab)
+        buf = offset > 0 and members[1] or offset < 0 and members[#members] or nil
+      else
+        buf = model:neighbor(ctx.tab, ctx.buf, offset, wrap)
+      end
       if not buf then
         return nil
       end
       return adapter.switch(ctx, buf)
+    end)
+  end
+
+  function public.alternate(opts)
+    opts = options(opts)
+    return run(function()
+      local ctx, err = context(opts)
+      if not ctx then
+        return nil, err
+      end
+      if ctx.implicit_special or not working(ctx.win) or not basic(adapter.window_buffer(ctx.win)) then
+        return nil
+      end
+      for _, buf in ipairs(history[ctx.tab] or {}) do
+        if buf ~= ctx.buf and model:contains(ctx.tab, buf) and eligible(buf) then
+          return adapter.switch(ctx, buf)
+        end
+      end
+      return nil
     end)
   end
 
@@ -943,9 +1005,9 @@ function M.new(adapter)
                 if current_reason then
                   error(current_reason)
                 end
-                local deleted, failure = pcall(adapter.delete_buffer, buf, { force = opts.force == true })
+                local deleted, failure = pcall(adapter.delete_buffer, buf, delete_options(opts.force))
                 if not deleted then
-                  if adapter.buffer_valid(buf) then
+                  if context_rules.basic(adapter.buffer(buf)) then
                     error(failure, 0)
                   end
                   -- Autocmd errors can be reported after deletion has committed.

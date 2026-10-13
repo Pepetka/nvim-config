@@ -9,6 +9,16 @@ local mappings = {
   { "<leader>x", buffers.close, "Close current buffer in tab" },
   { "<leader>cx", buffers.close_others, "Close other buffers in tab" },
   {
+    "<C-^>",
+    function()
+      -- Special windows (help, quickfix) keep the native alternate file.
+      if not buffers.alternate() and vim.bo.buftype ~= "" then
+        vim.cmd("normal! \30")
+      end
+    end,
+    "Alternate buffer in tab",
+  },
+  {
     "<leader>bh",
     function()
       buffers.move(-1)

@@ -13,6 +13,7 @@ require("tab_buffers.tabline").setup({
     }
   end,
   icons = true,
+  icon_colors = "active",
   max_name_length = 30,
   padding = 2,
   offsets = { "NvimTree", "nvim-undotree" },

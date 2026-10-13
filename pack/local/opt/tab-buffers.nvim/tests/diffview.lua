@@ -6,7 +6,9 @@ package.path = root .. "/tests/?.lua;" .. package.path
 local support = require("support")
 vim.opt.packpath:append(vim.fn.stdpath("data") .. "/site")
 vim.o.swapfile, vim.o.hidden = false, true
-vim.o.columns, vim.o.lines = 160, 50
+-- Resizing a UI-less Nvim 0.12 corrupts memory during later redraws; keep the default grid.
+-- Unbuffered output keeps completed test names visible if Nvim crashes.
+io.stdout:setvbuf("no")
 vim.cmd.packadd("diffview-plus.nvim")
 local api = vim.api
 local plugin = require("tab_buffers")

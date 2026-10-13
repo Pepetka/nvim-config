@@ -31,6 +31,7 @@
 ---@field orphans integer[] Buffers with no remaining owners, in previous tab order.
 
 ---@alias TabBuffersReplacement "right"|"left"|"last_used"
+---@alias TabBuffersDelete "bdelete"|"wipeout"
 ---@alias TabBuffersBufferFilter fun(buf: integer, facts: TabBuffersBufferFacts): boolean
 ---@alias TabBuffersTabFilter fun(tab: integer, facts: TabBuffersTabFacts): boolean
 
@@ -39,6 +40,7 @@
 ---@field wrap? boolean
 ---@field replacement? TabBuffersReplacement
 ---@field bootstrap_hidden_buffers? boolean
+---@field delete? TabBuffersDelete
 ---@field buffer_filter? TabBuffersBufferFilter
 ---@field tab_filter? TabBuffersTabFilter
 
@@ -47,6 +49,7 @@
 ---@field wrap boolean
 ---@field replacement TabBuffersReplacement
 ---@field bootstrap_hidden_buffers boolean
+---@field delete TabBuffersDelete
 ---@field buffer_filter? TabBuffersBufferFilter
 ---@field tab_filter? TabBuffersTabFilter
 
@@ -82,6 +85,7 @@
 ---@field switch fun(offset: integer, opts?: TabBuffersOptions): integer?, string?
 ---@field next fun(opts?: TabBuffersOptions): integer?, string?
 ---@field previous fun(opts?: TabBuffersOptions): integer?, string?
+---@field alternate fun(opts?: TabBuffersOptions): integer?, string?
 ---@field open fun(buf: integer, opts?: TabBuffersOptions): integer?, string?
 ---@field close fun(opts?: TabBuffersOptions): TabBuffersResult
 ---@field close_all fun(opts?: TabBuffersOptions): TabBuffersResult
@@ -131,6 +135,7 @@
 ---@class TabBuffersCallbacks
 ---@field changed TabBuffersAction
 ---@field text? fun(buf: integer): nil
+---@field entered? fun(buf: integer): nil
 ---@field buffer? fun(buf: integer): nil
 ---@field closing TabBuffersAction
 ---@field exiting TabBuffersAction
@@ -145,6 +150,8 @@
 ---@field replace fun(tab: integer, buf: integer, replacement: integer?, scan: TabBuffersAction, commit: TabBuffersAction): boolean, string?
 ---@field guard_closing fun(buffers: integer[]): nil
 ---@field restore_closing TabBuffersAction
+---@field track fun(buf: integer): nil
+---@field sweep TabBuffersAction
 
 ---@class TabBuffersAdapter: TabBuffersWindows
 ---@field current_tab fun(): integer
@@ -164,7 +171,7 @@
 ---@field buffer fun(buf: integer): TabBuffersBufferFacts
 ---@field window fun(win: integer): TabBuffersWindowFacts
 ---@field displaying fun(buf: integer): integer[]
----@field delete_buffer fun(buf: integer, opts: { force: boolean }): nil
+---@field delete_buffer fun(buf: integer, opts: TabBuffersDeleteOptions): nil
 ---@field focus_window fun(win: integer): nil
 ---@field schedule fun(action: TabBuffersAction): nil
 ---@field publish fun(tabs: integer[]): nil
@@ -196,10 +203,13 @@
 
 ---@alias TabBuffersHighlights table<string, vim.api.keyset.highlight>
 
+---@alias TabBuffersIconColors "all"|"active"|"none"
+
 ---@class TabBuffersTablineOptions
 ---@field visibility? "auto"|"always"|"never"
 ---@field tab_width_ratio? number
 ---@field icons? boolean
+---@field icon_colors? TabBuffersIconColors
 ---@field max_name_length? integer
 ---@field padding? integer
 ---@field offsets? string[]
@@ -210,6 +220,7 @@
 ---@field visibility "auto"|"always"|"never"
 ---@field tab_width_ratio number
 ---@field icons boolean
+---@field icon_colors TabBuffersIconColors
 ---@field max_name_length integer
 ---@field padding integer
 ---@field offsets string[]
@@ -221,6 +232,7 @@
 ---@field name string
 ---@field modified boolean
 ---@field icon string
+---@field icon_highlight? string Provider highlight group for the icon glyph.
 
 ---@class TabBuffersLabelEntry
 ---@field id integer
@@ -245,6 +257,8 @@
 ---@field active boolean
 ---@field highlight string
 ---@field text string
+---@field icon? string
+---@field icon_highlight? string
 
 ---@class TabBuffersPanelDocument
 ---@field text string
@@ -310,7 +324,7 @@
 ---@field view_closed fun(view: TabBuffersReview): nil
 
 ---@class TabBuffersIcons
----@field get_icon fun(name: string, extension: string, opts: { default: boolean }): string?
+---@field get_icon fun(name: string, extension: string, opts: { default: boolean }): string?, string?
 
 ---@class TabBuffersFzfOptions: table<string, unknown>
 ---@field no_hide? boolean
@@ -335,3 +349,11 @@
 ---@field column integer
 ---@field width integer
 ---@field height integer
+
+---@class TabBuffersDeleteOptions
+---@field force boolean
+---@field wipe boolean False unlists and unloads like :bdelete.
+
+---@class TabBuffersEntry
+---@field buf integer
+---@field tab integer

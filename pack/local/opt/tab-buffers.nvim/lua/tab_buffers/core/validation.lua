@@ -37,11 +37,25 @@ function M.buffer_list(value)
   return result
 end
 
+---Reject misspelled option names instead of silently falling back to defaults.
+---@param value table
+---@param known table<string, boolean>
+---@param kind string
+---@return nil
+function M.known(value, known, kind)
+  for key in pairs(value) do
+    assert(known[key], "unknown " .. kind .. ": " .. tostring(key))
+  end
+end
+
+local option_names = { tab = true, buf = true, win = true, index = true, force = true, wrap = true, split = true }
+
 ---@param opts? unknown
 ---@return TabBuffersOptions
 function M.options(opts)
   assert(opts == nil or type(opts) == "table", "opts must be a table")
   opts = opts or {}
+  M.known(opts, option_names, "option")
   for _, key in ipairs({ "tab", "buf", "win" }) do
     if opts[key] ~= nil then
       M.id(opts[key], key)

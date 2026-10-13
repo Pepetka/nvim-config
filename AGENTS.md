@@ -153,6 +153,7 @@ Triggers: `BufWritePost`, `BufReadPost`, `FileType`, `InsertLeave`, `TextChanged
 - `<leader>qd` / `<leader>qx` / `<leader>qs` / `<leader>ql` / `<leader>qq` / `<leader>qL` — `trouble.nvim`
 - `<Tab>` / `<S-Tab>` — next / previous buffer in the current tab
 - `<leader>x` — close current buffer, `<leader>cx` — close all except current in the tab
+- `<C-^>` — alternate buffer within the current tab (`tab_buffers.alternate()`)
 - `<leader>bh` / `<leader>bl` — move current buffer left / right within the tab
 - `<C-f>` — floating terminal
 - `<leader>ut` — undo tree

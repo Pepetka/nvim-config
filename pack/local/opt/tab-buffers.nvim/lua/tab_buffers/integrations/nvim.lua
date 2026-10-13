@@ -26,15 +26,29 @@ function M.new()
     replace = windows.replace,
     guard_closing = windows.guard_closing,
     restore_closing = windows.restore_closing,
+    sweep = windows.sweep,
+    track = windows.track,
     install = lifecycle.install,
   }
 
   -- Resolve mutable API functions at call time so third-party hooks and failures are observed.
   ---@param buf integer
-  ---@param opts { force: boolean }
+  ---@param opts TabBuffersDeleteOptions
   ---@return nil
   function adapter.delete_buffer(buf, opts)
-    api.nvim_buf_delete(buf, opts)
+    if opts.wipe then
+      api.nvim_buf_delete(buf, { force = opts.force })
+      return
+    end
+    -- Match :bdelete: unlist and unload, keeping marks, jumplist entries and the buffer number.
+    vim.bo[buf].buflisted = false
+    local ok, err = pcall(api.nvim_buf_delete, buf, { force = opts.force, unload = true })
+    if not ok then
+      if api.nvim_buf_is_valid(buf) and api.nvim_buf_is_loaded(buf) then
+        vim.bo[buf].buflisted = true
+      end
+      error(err, 0)
+    end
   end
 
   ---@param win integer
@@ -146,6 +160,7 @@ function M.new()
       api.nvim_set_current_tabpage(tab)
     end
     vim.cmd("botright new")
+    windows.track(api.nvim_get_current_buf())
   end
 
   return adapter

@@ -42,6 +42,7 @@ require("tab_buffers").setup({
   wrap = true,
   replacement = "right",
   bootstrap_hidden_buffers = true,
+  delete = "bdelete",
   -- buffer_filter = function(buf, facts) return true end,
   -- tab_filter = function(tab, facts) return true end,
 })
@@ -53,10 +54,11 @@ require("tab_buffers").setup({
 | `wrap` | `true` | Default for `switch`, `next` and `previous`. An operation's explicit `wrap` overrides it. |
 | `replacement` | `"right"` | `"right"` prefers the nearest remaining member to the right, then left; `"left"` reverses this preference. `"last_used"` chooses the most recently focused owned buffer, falling back to right/left. All policies skip pending close targets and ineligible members. |
 | `bootstrap_hidden_buffers` | `true` | Adopt pre-existing eligible hidden buffers during initial setup. False still adopts visible buffers and allows explicit `add()`. Reconfiguration does not rerun bootstrap. |
+| `delete` | `"bdelete"` | How exclusive buffers are closed. `"bdelete"` unlists and unloads them like `:bdelete`, keeping the buffer number, marks (including `'"`) and jumplist entries. `"wipeout"` deletes them completely like `:bwipeout`. Applies to explicit closing and to cleanup after tab closure. |
 | `buffer_filter` | unset | Callback `(buf, facts) → boolean` further restricts eligible buffers. Facts contain validity, listing, buftype, name, modified/loaded state and presence of text. |
 | `tab_filter` | unset | Callback `(tab, facts) → boolean` further restricts managed tabs. Facts contain validity and the native exclusion flag. `tabs()` still returns all real tabs for navigation. |
 
-Callbacks must return booleans, remain free of editor side effects and must not call managing methods.
+Unknown setting names raise an error instead of being ignored. Callbacks must return booleans, remain free of editor side effects and must not call managing methods.
 They run during reconciliation, so keep them inexpensive. They cannot enroll special buffers, empty drafts
 or excluded review tabs. Changing a filter releases rejected memberships without deleting text;
 explicit operations respect the same filters. Use `refresh()` or `User TabBuffersContextChanged` when
@@ -86,7 +88,8 @@ model without deleting real buffers. A later setup captures the current Neovim s
 | `move(offset, opts?)`, `move_to(index, opts?)` | Move the selected buffer within its tab; positions clamp at the ends. |
 | `reorder(buffers, opts?)` | Apply an exact permutation of the tab's membership list. |
 | `sort(by, opts?)` | One-time stable sort by `"id"`, basename `"name"`, full buffer `"path"`, or a comparator receiving buffer IDs. |
-| `switch(offset, opts?)`, `next(opts?)`, `previous(opts?)` | Switch a working window according to model order. Return the selected buffer ID, or nil if no target exists. |
+| `switch(offset, opts?)`, `next(opts?)`, `previous(opts?)` | Switch a working window according to model order. Return the selected buffer ID, or nil if no target exists. From an implicit non-member (a draft or foreign buffer), positive offsets select the first member and negative offsets the last. |
+| `alternate(opts?)` | Switch a working window to the most recently focused other member of the same tab. Unlike native `<C-^>`, it never selects another tab's buffer. |
 | `open(buf, opts?)` | Select an existing member, focusing a working window or creating a split while preserving special windows. |
 | `close(opts?)` | Close the selected buffer's membership in the tab. |
 | `close_all(opts?)`, `close_others(opts?)` | Close all buffers, or all except the selected buffer. |
@@ -109,12 +112,12 @@ No-op operations have no error. Closing returns a report:
 Closing functions return partial results and issue one warning for failures. Shared buffers count as
 closed after their target-tab membership is removed, even though their actual buffers remain alive.
 
-Options are optional tables. Each operation uses the applicable fields:
+Options are optional tables; unknown option names raise an error. Each operation uses the applicable fields:
 
 | Option | Default and meaning |
 | --- | --- |
-| `tab` | Current tab handle. |
-| `win` | The selected tab's current window; must belong to that tab. |
+| `tab` | Current tab handle, or the tab of an explicit `win`. |
+| `win` | The selected tab's current window; must belong to that tab when `tab` is also given. |
 | `buf` | The selected window's buffer. The positional argument to `add` overrides this field. |
 | `index` | Destination insertion position for `add` and `transfer`; defaults to the end. |
 | `force` | False; allows discarding modified exclusive buffers during close. Shared text is preserved even with force. |
@@ -153,14 +156,17 @@ after text or modifications appear; once enrolled they remain owned even if thei
 At first setup, visible working buffers belong to their respective tabs. Eligible hidden buffers with
 no owner append to the current ordinary tab (or another ordinary tab if the current tab is excluded) in buffer ID order. Buffers displayed only in excluded windows remain
 unowned. Newly created background buffers after setup stay unowned until shown or explicitly added.
+Buffers entered in a working window join that tab even if another buffer replaces them before the
+scheduled reconciliation, so `:edit a | edit b` or sequential picker opens keep both files in order.
 Hiding a buffer or closing a split does not remove membership. Rename retains membership/order;
 actual deletion, unlisting or changing to a special buftype removes it. The adapter does not change
 `buflisted` on tab switches, so native `bnext`/`bprevious` still traverse the global list; use its functions
 for tab-local navigation.
 
 Shared close changes only the target tab. Its working windows get a remaining buffer to the right,
-otherwise to the left. Bulk-close replacements skip other permitted closing targets. Exclusive close
-uses `nvim_buf_delete` after safety checks. Modified exclusive buffers require explicit force; buffers
+otherwise to the left. When no member remains, they show an empty placeholder; placeholders that are
+hidden without being edited or named are wiped, so closing a tab's last buffer does not leave `[No Name]` behind. Bulk-close replacements skip other permitted closing targets. Exclusive close
+uses `nvim_buf_delete` according to the `delete` setting after safety checks. Modified exclusive buffers require explicit force; buffers
 still referenced by unmanaged windows are retained. Failures preserve membership and restore affected
 window buffers where the handles remain valid. Other tabs and normal split layouts are preserved.
 
@@ -297,6 +303,7 @@ require("tab_buffers.tabline").setup({
   visibility = "auto",
   tab_width_ratio = 1 / 3,
   icons = true,
+  icon_colors = "all",
   max_name_length = 30,
   padding = 2,
   offsets = { "NvimTree", "nvim-undotree" },
@@ -305,13 +312,16 @@ require("tab_buffers.tabline").setup({
 ```
 
 `setup(opts?)` accepts the options above and optional `highlights`. Defaults are automatic visibility,
-a one-third tab width ratio, icons enabled, a 30-cell maximum name,
+a one-third tab width ratio, icons enabled and colored for all buffers, a 30-cell maximum name,
 zero horizontal padding, and empty offset/hidden-filetype lists. Personal settings live in the host's `lua/configs/tabline.lua`.
 `highlights` is a table keyed by Fill/Buffer/Visible/Active/Tab/TabActive/Offset/Border/ActiveBorder/Overflow, or a callback
 returning that table on setup and ColorScheme. Foregrounds default to Normal, with Function/Special
 accents for active buffers/tabs; opaque TabLineSel foregrounds are not reused. Backgrounds and reverse
 attributes are removed to preserve transparency. The host supplies fresh TokyoNight text/accent colors.
 No host modules are required. Icons use optional nvim-web-devicons; without it, names still render.
+`icon_colors` colors only the icon glyph with the provider's highlight group (for example `DevIconLua`):
+`"all"` colors every buffer, `"active"` only the active buffer, and `"none"` keeps the entry color.
+Provider groups follow theme changes themselves; unusual group names are ignored.
 
 The left side shows current-tab members in model order, with file icons, modified markers and
 active/visible/hidden highlights. When focus enters a special or floating window, the last active
@@ -346,7 +356,7 @@ transparent backgrounds and refresh on ColorScheme. No pins, groups, dragging, d
 animations, close buttons or session restoration are implemented.
 
 `render()` is the native tabline expression and returns the cached string without mutating the
-model. Updates coalesce on model/context, focus, tab, filename, modified-state, filetype, resize and
+model. Redraws are requested only while a UI is attached. Updates coalesce on model/context, focus, tab, filename, modified-state, filetype, resize and
 theme events. Repeated `setup` replaces handlers. `teardown()` cancels pending actions and restores
 previous tabline/showtabline values if they are still owned by this module. Tear the panel down before
 tearing down the ownership adapter. `click` is the native tabline callback, not a navigation API.
@@ -480,6 +490,9 @@ Teardown discards caches; filename, modified state, focus, review state and geom
 
 ## Tests
 
+Nvim 0.12 without an attached UI can corrupt memory when it redraws after `columns` or `lines` change, and
+then crash randomly. The UI and Diffview suites keep the default grid; the tabline suite resizes only because
+the panel never redraws without a UI and its checks use `nvim_eval_statusline`.
 The suites require LuaJIT for the core or Neovim >=0.12, with no additional test framework.
 The standalone tabline suite requires only Neovim. UI integration tests additionally require installed fzf-lua and the fzf executable.
 Diffview tests require installed diffview-plus.nvim and Git. The type check requires Lua Language Server

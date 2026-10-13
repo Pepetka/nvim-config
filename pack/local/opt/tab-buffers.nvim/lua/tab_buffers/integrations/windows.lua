@@ -7,6 +7,8 @@ local hidden_originals = {}
 function M.new()
   local windows = {}
   local closing_options = {}
+  ---@type table<integer, boolean>
+  local placeholders = {}
 
   ---@param buf integer
   ---@return boolean
@@ -203,6 +205,7 @@ function M.new()
         return false, tostring(value)
       end
       next_buf, placeholder = value, value
+      placeholders[value] = true
     end
     local focus = api.nvim_get_current_win()
     local buffers = { buf }
@@ -241,6 +244,32 @@ function M.new()
       return false, tostring(completed)
     end
     return completed == true, message
+  end
+
+  ---Remember an empty buffer created only to keep a working window.
+  ---@param buf integer
+  ---@return nil
+  function windows.track(buf)
+    placeholders[buf] = true
+  end
+
+  ---Wipe hidden placeholders that were never used. Used ones become ordinary buffers.
+  ---@return nil
+  function windows.sweep()
+    for buf in pairs(placeholders) do
+      local unused = api.nvim_buf_is_valid(buf)
+        and api.nvim_buf_get_name(buf) == ""
+        and vim.bo[buf].buftype == ""
+        and not vim.bo[buf].modified
+        and api.nvim_buf_line_count(buf) == 1
+        and api.nvim_buf_get_lines(buf, 0, 1, false)[1] == ""
+      if not unused then
+        placeholders[buf] = nil
+      elseif #vim.fn.win_findbuf(buf) == 0 then
+        placeholders[buf] = nil
+        pcall(api.nvim_buf_delete, buf, { force = false })
+      end
+    end
   end
 
   ---Keep original destructive options until native tab closure can be reconciled.

@@ -6,7 +6,8 @@ package.path = root .. "/tests/?.lua;" .. package.path
 local support = require("support")
 vim.opt.packpath:append(vim.fn.stdpath("data") .. "/site")
 vim.o.swapfile = false
-vim.o.columns, vim.o.lines = 160, 50
+-- Resizing a UI-less Nvim 0.12 corrupts memory during later redraws; keep the default grid.
+io.stdout:setvbuf("no")
 vim.cmd.packadd("fzf-lua")
 local api = vim.api
 local plugin = require("tab_buffers")
@@ -339,7 +340,7 @@ test("fzf actions use the captured tab and reject detached or expired selections
   options.actions["ctrl-x"].fn(rows)
   equal(api.nvim_tabpage_is_valid(first), false)
   equal(plugin.owners(a), { second })
-  equal(api.nvim_buf_is_valid(b), false)
+  equal(support.closed(b), true)
   options.actions.default(rows)
   equal(api.nvim_get_current_tabpage(), second)
   equal(api.nvim_get_current_buf(), a)
@@ -371,8 +372,8 @@ test("fzf multi-close uses one report and never discards modified exclusive text
   vim.bo[b].modified = true
   options.actions["ctrl-x"].fn(rows)
   equal(plugin.buffers(), { b })
-  equal(api.nvim_buf_is_valid(a), false)
-  equal(api.nvim_buf_is_valid(c), false)
+  equal(support.closed(a), true)
+  equal(support.closed(c), true)
   equal(ids(entries()), { b })
   equal(#notices, 1)
   equal(options.actions["ctrl-x"].reload, true)
@@ -505,7 +506,7 @@ test("real fzf Ctrl-X safely deletes and reloads while the picker stays open", f
   api.nvim_chan_send(channel, "\24")
   assert(
     vim.wait(10000, function()
-      return not api.nvim_buf_is_valid(b)
+      return support.closed(b)
     end, 10),
     "Ctrl-X timed out"
   )

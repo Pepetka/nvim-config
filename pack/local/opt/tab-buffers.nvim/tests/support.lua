@@ -32,6 +32,14 @@ function M.equal(actual, expected, path)
   end
 end
 
+---Closed like :bdelete (unlisted and unloaded) or wiped.
+---@param buf integer
+---@return boolean
+function M.closed(buf)
+  local api = vim.api
+  return not api.nvim_buf_is_valid(buf) or not vim.bo[buf].buflisted and not api.nvim_buf_is_loaded(buf)
+end
+
 ---@param fn fun(): unknown?
 ---@param pattern? string
 ---@return nil
