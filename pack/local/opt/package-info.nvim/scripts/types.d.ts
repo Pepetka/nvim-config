@@ -12,18 +12,26 @@ export interface Declaration {
   installed?: Installed;
 }
 export interface Installed {
-  state?: "installed" | "unknown" | "not_applicable";
+  state?: "installed" | "missing" | "unknown" | "not_applicable";
   version?: string;
   reason?: string;
 }
 export interface Metadata {
   versions: string[];
   "dist-tags": Record<string, string>;
+  deprecated?: string[];
 }
 export interface Comparison {
   wanted?: string;
   latest?: string;
-  status: "unknown" | "unavailable" | "current" | "update" | "major";
+  status:
+    | "unknown"
+    | "unavailable"
+    | "current"
+    | "update"
+    | "major"
+    | "mismatch"
+    | "missing";
   checked_at?: number;
 }
 export interface Manifest {
@@ -54,10 +62,10 @@ export interface Context {
   expected_major?: number;
   marker?: string;
   error?: string;
-  fingerprint: string;
   registry_fingerprint: string;
   pnp: boolean;
   custom_plugins: boolean;
+  project_code?: boolean;
   overrides: boolean;
   dependencies: (Declaration & { installed: Installed })[];
 }
@@ -98,6 +106,7 @@ export type Fetch = (
 ) => Promise<unknown>;
 export interface Client {
   key: string;
+  identity?: (name: string) => string;
   fetch: { json: Fetch };
   options: (name: string) => FetchOptions;
   enabled: boolean;
@@ -151,6 +160,12 @@ export interface NetworkDependencies extends NetworkOptions {
   now(): number;
   digest(value: string): string;
 }
+export interface Flight {
+  controller: AbortController;
+  promise: Promise<CacheEntry>;
+  users: number;
+}
+
 export interface NetworkTask {
   project: string;
   signal: AbortSignal;
@@ -161,6 +176,7 @@ export interface NetworkTask {
 }
 export interface NetworkContext {
   root: string;
+  manager?: string;
   dependencies: Declaration[];
 }
 export interface RecordResult {
@@ -193,7 +209,7 @@ export type HelperRequest =
   | {
       id: number;
       method: "compare";
-      input: { dep: Declaration; stdout: string };
+      input: { dep: Declaration; stdout: string; manager?: string };
     }
   | { id: number; method: "configure"; input: ConfigureInput }
   | {

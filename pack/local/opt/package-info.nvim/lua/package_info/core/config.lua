@@ -1,4 +1,6 @@
 local M = {}
+M.statuses =
+  { "installed", "update", "major", "mismatch", "missing", "unavailable", "not_found", "unsupported", "error" }
 ---@generic T
 ---@param value T
 ---@return T
@@ -108,6 +110,7 @@ function M.defaults()
   return {
     managers = {},
     fast_registry = true,
+    project_code = true,
     auto_refresh = { on_enter = true, on_save = true },
     sections = { "dependencies", "devDependencies", "optionalDependencies", "peerDependencies" },
     exclude = { packages = {}, projects = {} },
@@ -126,7 +129,7 @@ function M.defaults()
     },
     display = {
       enabled = true,
-      statuses = { "installed", "update", "major", "unavailable", "not_found", "unsupported", "error" },
+      statuses = M.copy(M.statuses),
       icons = { installed = "󰏖", update = "󰚰", error = "󰂡" },
       prefix = "  ",
       virt_text_pos = "eol",
@@ -171,7 +174,7 @@ function M.normalize(input)
             or manager:match("^pnpm@%d+[%.%d]*$")
           )
         then
-          result.managers[path] = manager
+          result.managers[path == "/" and path or (path:gsub("/+$", ""))] = manager
         else
           errors[#errors + 1] = "package-info: invalid manager override, ignoring entry"
         end
@@ -190,14 +193,18 @@ function M.normalize(input)
   local function pattern(value)
     return type(value) == "string" and value ~= ""
   end
+  local function absolute(value)
+    return type(value) == "string" and value:sub(1, 1) == "/"
+  end
   merge(result, extra, {
+    project_code = function(value)
+      return type(value) == "boolean" or list_of(absolute)(value)
+    end,
     auto_refresh = { on_enter = boolean, on_save = boolean },
     sections = list_of(choice({ "dependencies", "devDependencies", "optionalDependencies", "peerDependencies" })),
     exclude = {
       packages = list_of(pattern),
-      projects = list_of(function(value)
-        return type(value) == "string" and value:sub(1, 1) == "/"
-      end),
+      projects = list_of(absolute),
     },
     timeouts = { registry = positive, manager = positive, helper = positive, bootstrap = positive },
     concurrency = { http = positive, http_per_project = positive, cli = positive, cli_per_project = positive },
@@ -214,9 +221,7 @@ function M.normalize(input)
     },
     display = {
       enabled = boolean,
-      statuses = list_of(
-        choice({ "installed", "update", "major", "unavailable", "not_found", "unsupported", "error" })
-      ),
+      statuses = list_of(choice(M.statuses)),
       icons = { installed = string, update = string, error = string },
       prefix = string,
       virt_text_pos = choice({ "eol", "eol_right_align", "right_align" }),

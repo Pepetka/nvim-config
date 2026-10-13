@@ -6,8 +6,6 @@ local M = {}
 function M.metadata_key(context, target)
   local parts = {}
   for _, value in ipairs({
-    context.root,
-    context.dir,
     context.manager,
     tostring(assert(context.major)),
     context.registry_fingerprint,
@@ -77,22 +75,37 @@ end
 ---@param result PackageInfoProcessResult
 ---@return PackageInfoErrorKind, string
 function M.error(result)
-  local message = ((result.stderr or "") .. " " .. (result.stdout or "")):lower()
   if result.code == 124 or result.signal == 15 or result.signal == 9 then
     return "timeout", "Registry request timed out"
-  elseif
-    message:find("401", 1, true)
-    or message:find("403", 1, true)
-    or message:find("authentication", 1, true)
-    or message:find("unauthorized", 1, true)
-  then
-    return "auth", "Registry authentication failed"
-  elseif message:find("environment variable not found", 1, true) or message:find("usage error", 1, true) then
+  end
+  local lines = {}
+  for line in ((result.stderr or "") .. "\n" .. (result.stdout or "")):gmatch("[^\n]+") do
+    -- npm log paths contain timestamps that can look like HTTP status codes.
+    if not line:find("complete log of this run", 1, true) and not line:find("_logs/", 1, true) then
+      lines[#lines + 1] = line:lower()
+    end
+  end
+  local message = " " .. table.concat(lines, " ") .. " "
+  ---@param patterns string[]
+  ---@return boolean
+  local function has(patterns)
+    for _, pattern in ipairs(patterns) do
+      if message:find(pattern) then
+        return true
+      end
+    end
+    return false
+  end
+  if has({ "corepack", "network access disabled", "cannot start package manager" }) then
+    return "manager", "Package manager could not be started (Corepack downloads are disabled)"
+  elseif has({ "environment variable not found" }) then
     return "config", "Package manager configuration failed; check required environment variables and rc files"
-  elseif message:find("404", 1, true) or message:find("not found", 1, true) or message:find("yn0035", 1, true) then
+  elseif has({ "%f[%w]e40[13]%f[%W]", "%f[%d]40[13]%f[%D]", "unauthorized", "forbidden", "authentication" }) then
+    return "auth", "Registry authentication failed"
+  elseif has({ "%f[%w]e404%f[%W]", "%f[%d]404%f[%D]", "not found", "yn0035" }) then
     return "not_found", "Package not found or access denied by the registry"
-  elseif message:find("corepack", 1, true) or message:find("cannot start", 1, true) then
-    return "manager", "Package manager is unavailable (Corepack downloads are disabled)"
+  elseif has({ "usage error" }) then
+    return "config", "Package manager configuration failed; check required environment variables and rc files"
   end
   return "network", "Registry request failed; check network and manager configuration"
 end

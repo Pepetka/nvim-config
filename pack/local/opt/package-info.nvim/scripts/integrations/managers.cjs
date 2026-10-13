@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { execFileSync } = require("node:child_process");
 const { object } = require("../core/metadata.cjs");
 /** @param {string} value @returns {string} */
 function digest(value) {
@@ -11,9 +12,60 @@ function decode(text, fallback = {}) {
   if (!text || text.trim() === "undefined") return fallback;
   return JSON.parse(text);
 }
+/** @type {Map<string,string>} */
+const npmRoots = new Map();
+/** @param {string} executable @returns {string} */
+function npmRoot(executable) {
+  const known = npmRoots.get(executable);
+  if (known) return known;
+  /** @param {string} root */
+  const usable = (root) =>
+    fs.existsSync(path.join(root, "node_modules", "npm-registry-fetch"));
+  let root = "";
+  try {
+    root = path.dirname(path.dirname(fs.realpathSync(executable)));
+  } catch {}
+  if (!usable(root)) {
+    // Version manager shims (Volta, mise, asdf) do not resolve to npm's installation directory.
+    try {
+      root = path.join(
+        execFileSync(executable, ["root", "-g"], {
+          encoding: "utf8",
+          timeout: 5000,
+          stdio: ["ignore", "pipe", "ignore"],
+        }).trim(),
+        "npm",
+      );
+    } catch {}
+  }
+  if (!usable(root)) throw new Error("npm libraries are unavailable");
+  npmRoots.set(executable, root);
+  return root;
+}
+/** @param {import("../types").FetchOptions} options @returns {string} */
+function credentials(options) {
+  /** @type {Record<string,unknown>} */
+  const values = { registry: options.registry, forceAuth: options.forceAuth };
+  for (const [key, value] of Object.entries(options)) {
+    if (
+      key.startsWith("//") ||
+      [
+        "_auth",
+        "_authToken",
+        "username",
+        "_password",
+        "ca",
+        "cert",
+        "key",
+      ].includes(key)
+    )
+      values[key] = value;
+  }
+  return digest(JSON.stringify(Object.entries(values).sort()));
+}
 /** @param {string} executable @returns {import("../types").NpmLibraries} */
 function npmLibraries(executable) {
-  const root = path.dirname(path.dirname(fs.realpathSync(executable)));
+  const root = npmRoot(executable);
   /** @param {string} name @returns {unknown} */
   const load = (name) => require(path.join(root, "node_modules", name));
   return {
@@ -125,21 +177,33 @@ async function prepare(input, signal) {
   if (context.custom_plugins) return { fallback: true };
   // A range/lockfile edit changes the comparison, not the package metadata or credentials.
   const fingerprint = digest(
-    (context.registry_fingerprint || context.fingerprint) +
-      JSON.stringify(config),
+    (context.registry_fingerprint || "") + JSON.stringify(config),
   );
+  /** @param {string} name @returns {import("../types").FetchOptions} */
+  const fetchOptions = (name) => {
+    if (context.manager === "yarn" && (context.major || 0) > 1)
+      return modernOptions(config, name);
+    const options = optionsFromNpm(config);
+    const scope = name.startsWith("@") ? name.split("/")[0] : "";
+    const registry = config[scope + ":registry"] || config.registry;
+    options.registry = typeof registry === "string" ? registry : "";
+    if (!options.registry) throw new Error("Registry is unavailable");
+    return options;
+  };
+  /** @type {Map<string,string>} */
+  const identities = new Map();
   return {
     fetch: libs.fetch,
     key: fingerprint,
-    options: (/** @type {string} */ name) => {
-      if (context.manager === "yarn" && (context.major || 0) > 1)
-        return modernOptions(config, name);
-      const options = optionsFromNpm(config);
+    options: fetchOptions,
+    identity: (/** @type {string} */ name) => {
       const scope = name.startsWith("@") ? name.split("/")[0] : "";
-      const registry = config[scope + ":registry"] || config.registry;
-      options.registry = typeof registry === "string" ? registry : "";
-      if (!options.registry) throw new Error("Registry is unavailable");
-      return options;
+      let value = identities.get(scope);
+      if (value === undefined) {
+        value = credentials(fetchOptions(name));
+        identities.set(scope, value);
+      }
+      return value;
     },
     enabled: config.enableNetwork !== false && config.offline !== true,
     concurrency:

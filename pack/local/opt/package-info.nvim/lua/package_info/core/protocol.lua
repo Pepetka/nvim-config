@@ -49,6 +49,7 @@ function M.installed(value)
   if
     value.state ~= nil
     and value.state ~= "installed"
+    and value.state ~= "missing"
     and value.state ~= "unknown"
     and value.state ~= "not_applicable"
   then
@@ -86,6 +87,8 @@ function M.comparison(value)
     and value.status ~= "current"
     and value.status ~= "update"
     and value.status ~= "major"
+    and value.status ~= "mismatch"
+    and value.status ~= "missing"
     and value.status ~= "unavailable"
   then
     return nil
@@ -95,7 +98,10 @@ function M.comparison(value)
       return nil
     end
   end
-  if value.status == "update" and not value.wanted or value.status == "major" and not value.latest then
+  if
+    (value.status == "update" or value.status == "mismatch" or value.status == "missing") and not value.wanted
+    or value.status == "major" and not value.latest
+  then
     return nil
   end
   if value.checked_at ~= nil and not nonnegative(value.checked_at) then
@@ -110,8 +116,8 @@ function M.context(value)
     return nil
   end
   if
-    not optional(value, { "error", "marker", "fingerprint", "registry_fingerprint" }, "string")
-    or not optional(value, { "pnp", "custom_plugins", "overrides" }, "boolean")
+    not optional(value, { "error", "marker", "registry_fingerprint" }, "string")
+    or not optional(value, { "pnp", "custom_plugins", "project_code", "overrides" }, "boolean")
   then
     return nil
   end
@@ -128,11 +134,7 @@ function M.context(value)
   then
     return nil
   end
-  if
-    type(value.fingerprint) ~= "string"
-    or type(value.registry_fingerprint) ~= "string"
-    or not config.list(value.dependencies)
-  then
+  if type(value.registry_fingerprint) ~= "string" or not config.list(value.dependencies) then
     return nil
   end
   for _, dep in ipairs(value.dependencies) do

@@ -9,13 +9,20 @@ function metadata(value) {
     !Array.isArray(value.versions) ||
     !value.versions.every((v) => typeof v === "string") ||
     !object(value["dist-tags"]) ||
-    !Object.values(value["dist-tags"]).every((v) => typeof v === "string")
+    !Object.values(value["dist-tags"]).every((v) => typeof v === "string") ||
+    (value.deprecated !== undefined &&
+      (!Array.isArray(value.deprecated) ||
+        !value.deprecated.every((v) => typeof v === "string")))
   )
     throw Object.assign(new Error("Invalid metadata"), { code: "EMETADATA" });
-  return {
+  /** @type {import("../types").Metadata} */
+  const result = {
     versions: value.versions,
     "dist-tags": /** @type {Record<string,string>} */ (value["dist-tags"]),
   };
+  if (Array.isArray(value.deprecated) && value.deprecated.length)
+    result.deprecated = /** @type {string[]} */ (value.deprecated);
+  return result;
 }
 /** @param {unknown} value @param {string} name @returns {import("../types").Metadata} */
 function packument(value, name) {
@@ -25,11 +32,20 @@ function packument(value, name) {
     (!object(value.versions) && !Array.isArray(value.versions))
   )
     throw Object.assign(new Error("Invalid metadata"), { code: "EMETADATA" });
+  const versions = value.versions;
   return metadata({
-    versions: Array.isArray(value.versions)
-      ? value.versions
-      : Object.keys(value.versions),
+    versions: Array.isArray(versions) ? versions : Object.keys(versions),
     "dist-tags": value["dist-tags"],
+    deprecated: object(versions)
+      ? Object.entries(versions)
+          .filter(
+            ([, manifest]) =>
+              object(manifest) &&
+              typeof manifest.deprecated === "string" &&
+              manifest.deprecated !== "",
+          )
+          .map(([version]) => version)
+      : undefined,
   });
 }
 /** @param {string} text @returns {import("../types").Metadata} */

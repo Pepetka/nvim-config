@@ -16,7 +16,9 @@ function installed(value) {
     object(value) &&
     (value.state === undefined ||
       (typeof value.state === "string" &&
-        ["installed", "unknown", "not_applicable"].includes(value.state))) &&
+        ["installed", "missing", "unknown", "not_applicable"].includes(
+          value.state,
+        ))) &&
     ["version", "reason"].every(
       (key) => value[key] === undefined || typeof value[key] === "string",
     )
@@ -42,7 +44,7 @@ function declaration(value) {
 function context(value) {
   return (
     object(value) &&
-    ["dir", "root", "fingerprint", "registry_fingerprint"].every(
+    ["dir", "root", "registry_fingerprint"].every(
       (key) => typeof value[key] === "string",
     ) &&
     ["pnp", "custom_plugins", "overrides"].every(
@@ -83,7 +85,8 @@ function request(line) {
       )) ||
     (value.method === "compare" &&
       declaration(input.dep) &&
-      typeof input.stdout === "string") ||
+      typeof input.stdout === "string" &&
+      (input.manager === undefined || typeof input.manager === "string")) ||
     (value.method === "configure" &&
       object(input.context) &&
       strings(input.exports) &&

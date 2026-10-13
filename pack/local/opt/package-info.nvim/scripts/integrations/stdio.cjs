@@ -13,7 +13,8 @@ function serve(dispatcher) {
       } catch {
         send({ id, error: "Helper could not process the request" });
       }
-    });
+    })
+    .on("close", () => process.exit(0));
 }
 /** @param {import("../types").Response} value */
 function send(value) {

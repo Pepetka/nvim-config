@@ -67,7 +67,7 @@ t.test("annotation snapshots compare both text and highlight without depending o
   assert(not presentation.same_annotations(nil, {}))
   assert(presentation.same_annotations({}, {}))
 end)
-t.test("CLI metadata identity ignores declarations but changes with registry and manager context", function()
+t.test("CLI metadata identity ignores declarations and locations but changes with registry and manager", function()
   local context = {
     dir = "/a:b",
     root = "/root",
@@ -80,9 +80,12 @@ t.test("CLI metadata identity ignores declarations but changes with registry and
   local key = registry.metadata_key(context, "a")
   context.fingerprint = "manifest2"
   t.equal(registry.metadata_key(context, "a"), key)
+  for field, value in pairs({ dir = "/other", root = "/workspace" }) do
+    local moved = t.copy(context)
+    moved[field] = value
+    t.equal(registry.metadata_key(moved, "a"), key)
+  end
   for field, value in pairs({
-    dir = "/other",
-    root = "/workspace",
     manager = "pnpm",
     major = 10,
     registry_fingerprint = "registry2",
@@ -173,7 +176,7 @@ t.test("display filters statuses and supports text icons and annotation disablin
   }
   local options =
     config.normalize({ display = { statuses = { "installed" }, prefix = " | ", icons = { installed = "" } } })
-  t.equal(presentation.annotations(state, options.display), { [0] = { { " | 1.0.0", "Comment" } } })
+  t.equal(presentation.annotations(state, options.display), { [0] = { { " | 1.0.0", "PackageInfoInstalled" } } })
   options.display.enabled = false
   t.equal(presentation.annotations(state, options.display), {})
 end)
@@ -363,9 +366,50 @@ t.test("protocol and presentation reject malformed success and preserve installe
       },
     },
   }
-  t.equal(presentation.annotations(state)[1], { { "  󰏖 1.0.0", "Comment" } })
+  t.equal(presentation.annotations(state)[1], { { "  󰏖 1.0.0", "PackageInfoInstalled" } })
   assert(presentation.info(state, 1, 0)[1]:find("a"))
   t.equal(#presentation.info(nil, 0, 0), 1)
+end)
+t.test("registry errors ignore npm log timestamps and classify Corepack failures", function()
+  local log =
+    "npm error A complete log of this run can be found in: /home/.npm/_logs/2026-10-12T19_08_16_401Z-debug.log"
+  t.equal(registry.error({ code = 1, stderr = "npm error code ECONNRESET\n" .. log }), "network")
+  t.equal(registry.error({ code = 1, stderr = "npm error code E401\n" .. log }), "auth")
+  t.equal(registry.error({ code = 1, stderr = "npm error 404 Not Found - GET https://registry/x" }), "not_found")
+  t.equal(registry.error({ code = 1, stderr = "Usage Error: Network access disabled by the environment" }), "manager")
+  t.equal(registry.error({ code = 1, stderr = "Usage Error: Invalid option" }), "config")
+  t.equal(registry.error({ code = 124 }), "timeout")
+end)
+t.test("project code trust, manager paths and new statuses are configurable", function()
+  local options, messages = config.normalize({
+    project_code = { "/trusted" },
+    managers = { ["/project/"] = "yarn@4" },
+    display = { statuses = { "mismatch", "missing" } },
+  })
+  t.equal(messages, {})
+  t.equal(options.project_code, { "/trusted" })
+  t.equal(options.managers, { ["/project"] = "yarn@4" })
+  local _, invalid = config.normalize({ project_code = { "relative" } })
+  t.equal(#invalid, 1)
+  local state = {
+    lines = { ["dependencies:a"] = 1, ["dependencies:b"] = 2 },
+    context = {
+      dependencies = {
+        {
+          name = "a",
+          section = "dependencies",
+          installed = { state = "installed", version = "2.0.0" },
+          result = { status = "mismatch", wanted = "1.2.0" },
+        },
+        { name = "b", section = "dependencies", result = { status = "missing", wanted = "1.0.0" } },
+      },
+    },
+  }
+  local rows = presentation.annotations(state, options.display)
+  t.equal(rows[1][1][2], "PackageInfoMismatch")
+  t.equal(rows[2][1][2], "PackageInfoMissing")
+  assert(protocol.comparison({ status = "missing", wanted = "1.0.0" }))
+  assert(not protocol.comparison({ status = "mismatch" }))
 end)
 local ok, err = pcall(t.run, "package-info pure core")
 _G.vim = saved

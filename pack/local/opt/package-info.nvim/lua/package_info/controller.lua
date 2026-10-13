@@ -27,6 +27,23 @@ function Factory.new(adapter)
   local now = adapter.now
   ---@type table<integer, PackageInfoAnnotations>
   local rendered = {}
+  ---@param host? PackageInfoHost
+  ---@return boolean
+  local function manifest_buffer(host)
+    return host ~= nil
+      and not host.special
+      and host.path:match("/package%.json$") ~= nil
+      and not host.path:find("/node_modules/", 1, true)
+  end
+  ---@param root string
+  ---@return boolean
+  local function trusted(root)
+    local option = M.config.project_code
+    if type(option) == "boolean" then
+      return option
+    end
+    return filters.excluded_project(root, option)
+  end
   ---@param buf integer
   ---@param state PackageInfoBuffer
   ---@return boolean
@@ -80,20 +97,25 @@ function Factory.new(adapter)
   ---@param dep PackageInfoDependency
   ---@param entry PackageInfoCacheEntry
   local function compare(buf, state, dep, entry)
-    request(state, "compare", { dep = dep, stdout = entry.stdout }, function(raw, err)
-      local result = protocol.comparison(raw)
-      if raw ~= nil and not result then
-        err = "Registry returned invalid metadata"
-      end
+    local input = { dep = dep, stdout = entry.stdout, manager = assert(state.context).manager }
+    request(state, "compare", input, function(raw, err)
+      local invalid = type(raw) == "table" and raw.invalid == true
+      local result = not invalid and protocol.comparison(raw) or nil
       if not valid(buf, state) then
         return
       end
-      dep.result, dep.error = result, err
       dep.registry_time = entry.time
-      if err then
-        entry.stdout, entry.error, entry.kind = nil, err, "metadata"
-        dep.error_kind = "metadata"
-        state.error = "Registry returned invalid metadata; see :PackageInfo"
+      if invalid or raw ~= nil and not result then
+        -- Only invalid registry output replaces the cached metadata with an error.
+        local message = "Registry returned invalid metadata"
+        entry.stdout, entry.error, entry.kind = nil, message, "metadata"
+        dep.result, dep.error, dep.error_kind = nil, message, "metadata"
+        state.error = message .. "; see :PackageInfo"
+      elseif err then
+        dep.result, dep.error, dep.error_kind = nil, err, nil
+        state.error = err
+      else
+        dep.result, dep.error, dep.error_kind = result, nil, nil
       end
       render(buf, state)
     end)
@@ -266,9 +288,10 @@ function Factory.new(adapter)
     end
     buf = buf or adapter.current().buf
     local host = adapter.buffer(buf)
-    if not host or not host.path:match("/package%.json$") then
+    if not manifest_buffer(host) then
       return
     end
+    ---@cast host PackageInfoHost
     if filters.excluded_project(host.path, M.config.exclude.projects) then
       invalidate(buf)
       return
@@ -280,10 +303,10 @@ function Factory.new(adapter)
       helper.retry()
     end
     invalidate(buf)
-    if adapter.buffer(buf).modified then
+    host = config.copy(assert(adapter.buffer(buf)))
+    if host.modified then
       return
     end
-    local host = config.copy(assert(adapter.buffer(buf)))
     local parsed, err
     local parsed_ok
     parsed_ok, parsed, err = pcall(adapter.manifest, buf)
@@ -332,7 +355,13 @@ function Factory.new(adapter)
         return
       end
       context.dependencies = filters.dependencies(context.dependencies, M.config)
+      state.stamp = adapter.stamp and adapter.stamp(context) or nil
       if #context.dependencies == 0 then
+        return
+      end
+      if context.project_code and not trusted(context.root) then
+        state.error = "Project code execution is disabled for this project; see the project_code option"
+        render(buf, state)
         return
       end
       local probe_key = context.dir .. ":" .. context.registry_fingerprint
@@ -400,8 +429,30 @@ function Factory.new(adapter)
       M.config.display.float
     )
   end
+  ---@param buf integer
+  function M.forget(buf)
+    invalidate(buf)
+    M.buffers[buf] = nil
+  end
+  ---@param buf integer
+  function M.enter(buf)
+    local state = M.buffers[buf]
+    if state and not state.disabled and valid(buf, state) and state.checked_at then
+      local age = now() - state.checked_at
+      local fresh = age >= 0 and age < (state.error and M.config.cache.retry or M.config.cache.ttl)
+      local unchanged = not state.context or not adapter.stamp or adapter.stamp(state.context) == state.stamp
+      if fresh and unchanged then
+        return
+      end
+    end
+    M.refresh(buf)
+  end
   function M.toggle()
     local buf = adapter.current().buf
+    if not manifest_buffer(adapter.buffer(buf)) then
+      adapter.notify("package-info: the current buffer is not a package.json file")
+      return
+    end
     if M.buffers[buf] and M.buffers[buf].disabled then
       M.buffers[buf] = nil
       M.refresh(buf)

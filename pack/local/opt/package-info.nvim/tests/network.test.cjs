@@ -87,6 +87,51 @@ test("custom cache lifetime, backoff, memory limits and disabled disk persistenc
   assert.deepEqual(fs.readdirSync(dir), [path.basename(existing)]);
   assert.equal(fs.readFileSync(existing, "utf8"), "leave untouched");
 });
+test("metadata is shared by clients with the same registry credentials", async (t) => {
+  let calls = 0;
+  const json = async (/** @type {string} */ url) => {
+    calls++;
+    return metadata(url.split("/").pop() || "a");
+  };
+  const network = new Network({ cacheDir: fixture(t) });
+  const signal = new AbortController().signal;
+  const first = { ...client(json, "first"), identity: () => "same" };
+  const second = { ...client(json, "second"), identity: () => "same" };
+  const other = { ...client(json, "third"), identity: () => "other" };
+  await network.lookup(first, "p1", "a", signal);
+  assert.ok((await network.lookup(second, "p2", "a", signal)).cached);
+  assert.equal(calls, 1);
+  await network.lookup(other, "p2", "a", signal);
+  assert.equal(calls, 2);
+});
+test("native npm clients derive cache identity from registry credentials only", async (t) => {
+  const dir = fixture(t);
+  fs.writeFileSync(path.join(dir, "package.json"), "{}");
+  /** @param {string} token @param {string} fingerprint */
+  const identity = async (token, fingerprint) => {
+    fs.writeFileSync(
+      path.join(dir, ".npmrc"),
+      "registry=https://registry.example.test/\n//registry.example.test/:_authToken=" +
+        token +
+        "\n",
+    );
+    const prepared = await prepare({
+      npm_path: required(
+        spawnSync("which", ["npm"], { encoding: "utf8" }).stdout.trim(),
+      ),
+      context: { manager: "npm", dir, registry_fingerprint: fingerprint },
+      environment: { HOME: dir, PATH: process.env.PATH || "" },
+    });
+    assert.ok(!("fallback" in prepared));
+    return required(
+      /** @type {import("../scripts/types").Client} */ (prepared).identity,
+    )("example");
+  };
+  const first = await identity("one", "a");
+  assert.equal(await identity("one", "b"), first);
+  assert.notEqual(await identity("two", "a"), first);
+  assert.ok(!first.includes("one"));
+});
 test("custom disk capacity/cleanup lifetime and zero memory limits are effective", async (t) => {
   const dir = fixture(t);
   const { storage } = require("../scripts/integrations/cache.cjs");
@@ -231,7 +276,6 @@ test("configure cancellation discards late clients and dispatcher evicts replace
         context: {
           dir: "/project",
           root: "/project",
-          fingerprint: "a",
           registry_fingerprint: "a",
           pnp: false,
           custom_plugins: false,
@@ -359,7 +403,6 @@ test("dispatcher teardown discards late configuration and aborts active checks",
       context: {
         dir: "/project",
         root: "/project",
-        fingerprint: "manifest",
         registry_fingerprint: "registry",
         pnp: false,
         custom_plugins: false,
@@ -607,60 +650,89 @@ test("timeouts and cancellation release slots and never cache cancelled response
     clearInterval(keepAlive);
   }
 });
-test("cancelling one check cannot abort another buffer checking the same package", async () => {
+test("concurrent checks share one request and cancelling one cannot abort the other", async () => {
   const network = new Network({ globalLimit: 1, projectLimit: 1 });
   const started = Promise.withResolvers();
+  const release = Promise.withResolvers();
   let calls = 0;
-  const c = client((url, options) => {
+  /** @type {AbortSignal | undefined} */
+  let fetchSignal;
+  const c = client(async (url, options) => {
     calls++;
-    if (calls > 1) return Promise.resolve(metadata("example"));
-    return new Promise((resolve, reject) => {
-      options.signal.addEventListener(
-        "abort",
-        () => reject(options.signal.reason),
-        { once: true },
-      );
-      started.resolve(undefined);
-    });
+    fetchSignal = options.signal;
+    started.resolve(undefined);
+    await release.promise;
+    return metadata("example");
   });
   const controller = new AbortController();
   /** @type {import("../scripts/types").Progress[]} */
   const cancelled = [];
   /** @type {import("../scripts/types").Progress[]} */
   const kept = [];
-  const context = {
-    root: "shared-workspace",
-    dependencies: [dependency("example")],
-  };
-  const first = network.check(c, context, controller.signal, false, (event) =>
-    cancelled.push(event),
+  const first = network.check(
+    c,
+    { root: "first", dependencies: [dependency("example")] },
+    controller.signal,
+    false,
+    (event) => cancelled.push(event),
   );
   const second = network.check(
     c,
-    context,
+    { root: "second", dependencies: [dependency("example")] },
     new AbortController().signal,
     false,
     (event) => kept.push(event),
   );
   await started.promise;
   controller.abort();
-  network.pump();
-  await Promise.all([first, second]);
+  await first;
+  assert.equal(required(fetchSignal).aborted, false);
+  release.resolve(undefined);
+  await second;
   assert.equal(cancelled.length, 0);
   assert.equal(kept.length, 1);
   assert.equal(required(kept[0].records[0].result).wanted, "1.2.0");
-  assert.equal(calls, 2);
+  assert.equal(calls, 1);
   assert.equal(
-    (
-      await network.lookup(
-        c,
-        context.root,
-        "example",
-        new AbortController().signal,
-      )
-    ).cached,
+    (await network.lookup(c, "third", "example", new AbortController().signal))
+      .cached,
     true,
   );
+  assert.equal(calls, 1);
+  assert.equal(network.flights.size, 0);
+});
+test("a shared request is aborted and not cached once every waiting check is cancelled", async () => {
+  const network = new Network();
+  const started = Promise.withResolvers();
+  let calls = 0;
+  const c = client((url, options) => {
+    calls++;
+    if (calls > 1) return Promise.resolve(metadata("example"));
+    started.resolve(undefined);
+    return new Promise((resolve, reject) => {
+      options.signal.addEventListener(
+        "abort",
+        () => reject(options.signal.reason),
+        { once: true },
+      );
+    });
+  });
+  const controllers = [new AbortController(), new AbortController()];
+  const lookups = controllers.map((controller) =>
+    network.lookup(c, "p", "example", controller.signal).catch(() => null),
+  );
+  await started.promise;
+  for (const controller of controllers) controller.abort();
+  assert.deepEqual(await Promise.all(lookups), [null, null]);
+  assert.equal(network.flights.size, 0);
+  assert.equal(network.cached(digest(c.key + ":example")), null);
+  const fresh = await network.lookup(
+    c,
+    "p",
+    "example",
+    new AbortController().signal,
+  );
+  assert.ok(fresh.metadata);
   assert.equal(calls, 2);
 });
 test("an unusable cache directory cannot prevent results or the in-memory cache", async (t) => {
@@ -804,7 +876,7 @@ test("native npm configuration reads project and scoped auth without touching ma
   );
   const native = await prepare({
     npm_path: npm,
-    context: { manager: "npm", dir, fingerprint: "fixture" },
+    context: { manager: "npm", dir, registry_fingerprint: "fixture" },
     environment: {
       HOME: dir,
       NPM_CONFIG_GLOBALCONFIG: path.join(dir, "globalrc"),
@@ -840,7 +912,7 @@ test("native configuration export adapters preserve credentials and fall back fo
   };
   const c = await prepare({
     npm_path: npm,
-    context: { manager: "yarn", major: 4, fingerprint: "context" },
+    context: { manager: "yarn", major: 4, registry_fingerprint: "context" },
     exports: modern,
   });
   assert.ok("options" in c);
@@ -856,7 +928,7 @@ test("native configuration export adapters preserve credentials and fall back fo
   );
   const classic = await prepare({
     npm_path: npm,
-    context: { manager: "yarn", major: 1, fingerprint: "context" },
+    context: { manager: "yarn", major: 1, registry_fingerprint: "context" },
     exports: {
       config:
         JSON.stringify({
@@ -881,7 +953,7 @@ test("native configuration export adapters preserve credentials and fall back fo
   assert.equal(classic.options("example").registry, "https://yarn.test");
   const pnpm = await prepare({
     npm_path: npm,
-    context: { manager: "pnpm", fingerprint: "context" },
+    context: { manager: "pnpm", registry_fingerprint: "context" },
     exports: {
       config: JSON.stringify({
         registry: "https://pnpm.test",

@@ -537,6 +537,101 @@ t.test("cancellation retains process slots until the native exit callback", func
   t.equal(queue.active, 0)
   t.equal(queue.waiting, {})
 end)
+---@param overrides? table
+---@return PackageInfoContext
+local function cli_context(overrides)
+  local context = {
+    dir = "/tmp/project",
+    root = "/tmp/project",
+    manager = "npm",
+    registry_fingerprint = "registry",
+    dependencies = {
+      {
+        name = "a",
+        spec = "^1",
+        section = "dependencies",
+        kind = "range",
+        target = "a",
+        range = "^1",
+        installed = { state = "installed", version = "1.0.0" },
+      },
+    },
+  }
+  for key, value in pairs(overrides or {}) do
+    context[key] = value
+  end
+  return context
+end
+t.test("special, dependency and non-manifest buffers are ignored", function()
+  local instance, state, transport = fixtures.controller()
+  for _, host in ipairs({
+    { path = "diffview:///tmp/project/package.json", tick = 1, modified = false, special = true },
+    { path = "/tmp/project/node_modules/a/package.json", tick = 1, modified = false },
+  }) do
+    state.host = host
+    instance.refresh()
+    instance.enter(1)
+  end
+  t.equal(transport.sent, {})
+  state.host = { path = "/tmp/project/index.js", tick = 1, modified = false }
+  instance.toggle()
+  t.equal(instance.buffers[1], nil)
+  t.equal(#state.notifications, 1)
+end)
+t.test("entering a fresh buffer keeps its state until the install stamp changes", function()
+  local instance, state, transport, adapter = fixtures.controller()
+  local stamp = "one"
+  adapter.stamp = function()
+    return stamp
+  end
+  instance.refresh()
+  assert(transport.receive)({ id = 1, result = cli_context() })
+  local checked = instance.buffers[1]
+  local sent, cleared = #transport.sent, state.cleared
+  instance.enter(1)
+  assert(instance.buffers[1] == checked)
+  t.equal(#transport.sent, sent)
+  t.equal(state.cleared, cleared)
+  stamp = "two"
+  instance.enter(1)
+  assert(instance.buffers[1] ~= checked)
+  t.equal(transport.sent[#transport.sent].method, "inspect")
+  instance.forget(1)
+  t.equal(instance.buffers[1], nil)
+  instance.teardown()
+end)
+t.test("helper transport errors keep cached CLI metadata while invalid output replaces it", function()
+  local instance, _, transport = fixtures.controller()
+  instance.refresh()
+  local receive = assert(transport.receive)
+  receive({ id = 1, result = cli_context() })
+  t.equal(transport.sent[2].method, "compare")
+  t.equal(transport.sent[2].input.manager, "npm")
+  receive({ id = 2, error = "Node helper request timed out" })
+  local _, entry = next(instance.cache)
+  t.equal(assert(entry).stdout, "11.0.0")
+  t.equal(instance.buffers[1].error, "Node helper request timed out")
+  instance.refresh()
+  receive({ id = 3, result = cli_context() })
+  receive({ id = 4, result = { invalid = true } })
+  _, entry = next(instance.cache)
+  t.equal(assert(entry).kind, "metadata")
+  t.equal(assert(instance.buffers[1].context).dependencies[1].error_kind, "metadata")
+  instance.teardown()
+end)
+t.test("project code execution can be limited to trusted roots", function()
+  local instance, _, transport = fixtures.controller()
+  instance.setup({ fast_registry = false, project_code = { "/trusted" } })
+  instance.refresh()
+  assert(transport.receive)({ id = 1, result = cli_context({ project_code = true }) })
+  t.equal(#transport.sent, 1)
+  assert(assert(instance.buffers[1].error):find("project_code", 1, true))
+  instance.setup({ fast_registry = false, project_code = { "/tmp" } })
+  instance.refresh()
+  assert(transport.receive)({ id = 2, result = cli_context({ project_code = true }) })
+  t.equal(transport.sent[3].method, "compare")
+  instance.teardown()
+end)
 local ok, err = pcall(t.run, "package-info controllers without vim")
 _G.vim = saved
 assert(ok, err)

@@ -51,15 +51,25 @@ function M.annotations(state, options)
       label, highlight = format_label(options.icons.update, result.wanted), "PackageInfoUpdate"
     elseif result.status == "major" and visible.major then
       label, highlight = format_label(options.icons.update, "latest " .. result.latest), "PackageInfoLatest"
+    elseif result.status == "mismatch" and visible.mismatch then
+      label, highlight =
+        format_label(
+          options.icons.error,
+          (dep.installed and dep.installed.version or "?") .. " outside range, wanted " .. result.wanted
+        ),
+        "PackageInfoMismatch"
+    elseif result.status == "missing" and visible.missing then
+      label, highlight =
+        format_label(options.icons.update, "not installed, wanted " .. result.wanted), "PackageInfoMissing"
     elseif result.status == "unavailable" and visible.unavailable then
       label, highlight = format_label(options.icons.error, "unavailable"), "PackageInfoError"
     elseif dep.error_kind == "not_found" and visible.not_found then
       label, highlight = format_label(options.icons.error, "registry/access"), "PackageInfoError"
     elseif dep.kind == "unsupported" and visible.unsupported then
-      label, highlight = format_label(options.icons.error, "unsupported"), "Comment"
+      label, highlight = format_label(options.icons.error, "unsupported"), "PackageInfoUnsupported"
     end
     if not label and visible.installed and dep.installed and dep.installed.version then
-      label, highlight = format_label(options.icons.installed, dep.installed.version), "Comment"
+      label, highlight = format_label(options.icons.installed, dep.installed.version), "PackageInfoInstalled"
     end
     if row and label then
       rows[row] = rows[row] or {}

@@ -16,7 +16,7 @@
 ---@field pending fun(): integer
 ---@field teardown PackageInfoCancel
 ---@alias PackageInfoSection "dependencies" | "devDependencies" | "optionalDependencies" | "peerDependencies"
----@alias PackageInfoDisplayStatus "installed" | "update" | "major" | "unavailable" | "not_found" | "unsupported" | "error"
+---@alias PackageInfoDisplayStatus "installed" | "update" | "major" | "mismatch" | "missing" | "unavailable" | "not_found" | "unsupported" | "error"
 ---@alias PackageInfoTextPosition "eol" | "eol_right_align" | "right_align"
 ---@alias PackageInfoBorder "none" | "single" | "double" | "rounded" | "solid" | "shadow"
 
@@ -60,6 +60,7 @@
 ---@class PackageInfoOptions
 ---@field managers? table<string, string>
 ---@field fast_registry? boolean
+---@field project_code? boolean | string[]
 ---@field auto_refresh? boolean | {on_enter?: boolean, on_save?: boolean}
 ---@field sections? PackageInfoSection[]
 ---@field exclude? {packages?: string[], projects?: string[]}
@@ -71,6 +72,7 @@
 ---@class PackageInfoConfig
 ---@field managers table<string, string>
 ---@field fast_registry boolean
+---@field project_code boolean | string[]
 ---@field auto_refresh {on_enter: boolean, on_save: boolean}
 ---@field sections PackageInfoSection[]
 ---@field exclude {packages: string[], projects: string[]}
@@ -83,6 +85,7 @@
 ---@field path string
 ---@field tick integer
 ---@field modified boolean
+---@field special? boolean
 
 ---@class PackageInfoManifestFact
 ---@field object string
@@ -97,14 +100,14 @@
 ---@field lines table<string, integer>
 
 ---@class PackageInfoInstalled
----@field state? "installed" | "unknown" | "not_applicable"
+---@field state? "installed" | "missing" | "unknown" | "not_applicable"
 ---@field version? string
 ---@field reason? string
 
 ---@class PackageInfoComparison
 ---@field wanted? string
 ---@field latest? string
----@field status "unknown" | "current" | "update" | "major" | "unavailable"
+---@field status "unknown" | "current" | "update" | "major" | "mismatch" | "missing" | "unavailable"
 ---@field checked_at? number
 
 ---@class PackageInfoDependency
@@ -130,11 +133,11 @@
 ---@field expected_major? integer
 ---@field marker? string
 ---@field error? string
----@field fingerprint string
 ---@field registry_fingerprint string
 ---@field dependencies PackageInfoDependency[]
 ---@field pnp? boolean
 ---@field custom_plugins? boolean
+---@field project_code? boolean
 ---@field overrides? boolean
 
 ---@class PackageInfoRecord
@@ -176,6 +179,7 @@
 ---@field network? {completed: integer, total: integer}
 ---@field network_ticket? PackageInfoTicket
 ---@field client_retries? integer
+---@field stamp? string
 
 ---@class PackageInfoCacheEntry
 ---@field time number
@@ -216,7 +220,7 @@
 ---@field now fun(): number
 ---@field notify fun(message: string): nil
 ---@field bootstrap fun(source: string, runtime: string, callback: PackageInfoBootstrapCallback): nil
----@field start fun(runtime: string, response: PackageInfoResponse, exit: PackageInfoCancel): integer
+---@field start fun(runtime: string, response: PackageInfoResponse, exit: fun(reason?: string): nil): integer
 ---@field stop fun(job?: integer): nil
 ---@field schedule fun(delay: integer, callback: PackageInfoCancel): PackageInfoCancel
 ---@field send fun(job: integer, message: table): nil
@@ -256,6 +260,8 @@
 ---@field teardown PackageInfoCancel
 ---@field refresh fun(buf?: integer, force?: boolean): nil
 ---@field invalidate fun(buf: integer, disabled?: boolean): nil
+---@field forget fun(buf: integer): nil
+---@field enter fun(buf: integer): nil
 ---@field toggle PackageInfoCancel
 ---@field info PackageInfoCancel
 ---@field status PackageInfoCancel
@@ -274,6 +280,7 @@
 ---@field npm_path fun(): string
 ---@field user_config fun(): string?
 ---@field environment_hash fun(): string
+---@field stamp? fun(context: PackageInfoContext): string
 ---@field encode fun(value: table): string
 ---@field decode fun(text: string): unknown
 ---@field manifest fun(buf: integer): PackageInfoManifest?, string?

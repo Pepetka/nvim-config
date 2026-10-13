@@ -1,5 +1,43 @@
 local M = {}
 local sequence = 0
+-- Files whose changes make installed versions or registry configuration stale.
+local stamp_files = {
+  "package.json",
+  "package-lock.json",
+  "npm-shrinkwrap.json",
+  "yarn.lock",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  ".npmrc",
+  ".yarnrc",
+  ".yarnrc.yml",
+  ".pnp.cjs",
+  ".yarn/install-state.gz",
+  "node_modules/.package-lock.json",
+  "node_modules/.modules.yaml",
+  "node_modules/.yarn-state.yml",
+  "node_modules/.yarn-integrity",
+}
+---@param name string
+---@return boolean
+local function registry_variable(name)
+  local lower = name:lower()
+  for _, prefix in ipairs({ "npm_config_", "yarn_", "pnpm_", "corepack_" }) do
+    if vim.startswith(lower, prefix) then
+      return true
+    end
+  end
+  return vim.endswith(lower, "_proxy")
+    or vim.list_contains(
+      { "home", "xdg_config_home", "prefix", "node_extra_ca_certs", "node_tls_reject_unauthorized" },
+      lower
+    )
+end
+---@param buf integer
+---@return boolean
+local function visible(buf)
+  return #vim.fn.win_findbuf(buf) > 0
+end
 ---@return PackageInfoAdapter
 function M.new()
   sequence = sequence + 1
@@ -23,10 +61,12 @@ function M.new()
       if not vim.api.nvim_buf_is_valid(buf) then
         return nil
       end
+      local path = vim.api.nvim_buf_get_name(buf)
       return {
-        path = vim.api.nvim_buf_get_name(buf),
+        path = path,
         tick = vim.api.nvim_buf_get_changedtick(buf),
         modified = vim.bo[buf].modified,
+        special = vim.bo[buf].buftype ~= "" or path:find("^%a[%w+.-]*://") ~= nil,
       }
     end,
     executable = function(name)
@@ -52,9 +92,15 @@ function M.new()
   end
   adapter.helper = require("package_info.core.helper").new(require("package_info.integrations.runtime").new())
   adapter.queue = require("package_info.core.queue").new(function(task, callback)
+    local env = { COREPACK_ENABLE_NETWORK = "0" }
+    if task.command[1] == "pnpm" then
+      -- pnpm otherwise downloads and runs the version declared by packageManager.
+      env.npm_config_manage_package_manager_versions = "false"
+      env.npm_config_pm_on_fail = "ignore"
+    end
     local process = vim.system(
       task.command,
-      { cwd = task.cwd, env = { COREPACK_ENABLE_NETWORK = "0" }, text = true, timeout = task.timeout or 15000 },
+      { cwd = task.cwd, env = env, text = true, timeout = task.timeout or 15000 },
       function(result)
         vim.schedule(function()
           callback({ code = result.code, signal = result.signal, stdout = result.stdout, stderr = result.stderr })
@@ -71,7 +117,9 @@ function M.new()
     local environment = adapter.environment()
     local names = {}
     for name in pairs(environment) do
-      names[#names + 1] = name
+      if registry_variable(name) then
+        names[#names + 1] = name
+      end
     end
     table.sort(names)
     local values = {}
@@ -79,6 +127,31 @@ function M.new()
       values[#values + 1] = { name, environment[name] }
     end
     return vim.fn.sha256(adapter.encode(values))
+  end
+  function adapter.stamp(context)
+    local parts = {}
+    local dir = context.dir
+    local home = vim.env.HOME
+    while true do
+      for _, name in ipairs(stamp_files) do
+        local stat = vim.uv.fs_stat(dir .. "/" .. name)
+        if stat then
+          parts[#parts + 1] = table.concat({ dir, name, stat.mtime.sec, stat.mtime.nsec, stat.size }, ":")
+        end
+      end
+      local parent = vim.fs.dirname(dir)
+      if dir == context.root or parent == dir then
+        break
+      end
+      dir = parent
+    end
+    for _, name in ipairs(home and { ".npmrc", ".yarnrc", ".yarnrc.yml" } or {}) do
+      local stat = vim.uv.fs_stat(home .. "/" .. name)
+      if stat then
+        parts[#parts + 1] = table.concat({ name, stat.mtime.sec, stat.mtime.nsec, stat.size }, ":")
+      end
+    end
+    return table.concat(parts, "|")
   end
   function adapter.clear(buf)
     if vim.api.nvim_buf_is_valid(buf) then
@@ -122,9 +195,17 @@ function M.new()
   ---@param controller PackageInfoController
   function adapter.install(controller)
     local function highlights()
-      vim.api.nvim_set_hl(0, "PackageInfoUpdate", { link = "DiagnosticInfo" })
-      vim.api.nvim_set_hl(0, "PackageInfoLatest", { link = "DiagnosticWarn" })
-      vim.api.nvim_set_hl(0, "PackageInfoError", { link = "DiagnosticError" })
+      for group, link in pairs({
+        PackageInfoUpdate = "DiagnosticInfo",
+        PackageInfoLatest = "DiagnosticWarn",
+        PackageInfoError = "DiagnosticError",
+        PackageInfoMismatch = "DiagnosticWarn",
+        PackageInfoMissing = "DiagnosticHint",
+        PackageInfoInstalled = "Comment",
+        PackageInfoUnsupported = "Comment",
+      }) do
+        vim.api.nvim_set_hl(0, group, { link = link, default = true })
+      end
     end
     highlights()
     group = vim.api.nvim_create_augroup(name, { clear = true })
@@ -145,22 +226,49 @@ function M.new()
       },
       callback = function(event)
         local directory = vim.fs.dirname(vim.api.nvim_buf_get_name(event.buf))
+        local affected = {}
         for buf, state in pairs(controller.buffers) do
           if buf ~= event.buf and state.path and state.path:sub(1, #directory + 1) == directory .. "/" then
             controller.invalidate(buf, state.disabled)
+            if not state.disabled then
+              affected[#affected + 1] = buf
+            end
           end
+        end
+        if config.auto_refresh.on_save and #affected > 0 then
+          vim.schedule(function()
+            for _, buf in ipairs(affected) do
+              if vim.api.nvim_buf_is_valid(buf) and visible(buf) then
+                controller.enter(buf)
+              end
+            end
+          end)
         end
       end,
     })
-    vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost" }, {
+    vim.api.nvim_create_autocmd({ "BufEnter", "BufReadPost", "FileChangedShellPost", "BufWritePost" }, {
       group = group,
       pattern = "package.json",
       callback = function(event)
-        if
-          event.event == "BufEnter" and config.auto_refresh.on_enter
-          or event.event == "BufWritePost" and config.auto_refresh.on_save
-        then
-          controller.refresh(event.buf)
+        if event.event == "BufWritePost" then
+          if config.auto_refresh.on_save then
+            controller.refresh(event.buf)
+          end
+        elseif config.auto_refresh.on_enter then
+          controller.enter(event.buf)
+        end
+      end,
+    })
+    vim.api.nvim_create_autocmd("FocusGained", {
+      group = group,
+      callback = function()
+        if config.auto_refresh.on_enter then
+          local buffers = vim.tbl_keys(controller.buffers)
+          for _, buf in ipairs(buffers) do
+            if vim.api.nvim_buf_is_valid(buf) and visible(buf) then
+              controller.enter(buf)
+            end
+          end
         end
       end,
     })
@@ -168,13 +276,15 @@ function M.new()
       group = group,
       callback = function(event)
         local state = controller.buffers[event.buf]
-        if
-          state
-          and (
-            event.event ~= "TextChanged" and event.event ~= "TextChangedI"
-            or vim.api.nvim_buf_get_changedtick(event.buf) ~= state.tick
-            or vim.bo[event.buf].modified
-          )
+        if not state then
+          return
+        end
+        if event.event == "BufWipeout" then
+          controller.forget(event.buf)
+        elseif
+          event.event ~= "TextChanged" and event.event ~= "TextChangedI"
+          or vim.api.nvim_buf_get_changedtick(event.buf) ~= state.tick
+          or vim.bo[event.buf].modified
         then
           controller.invalidate(event.buf, state.disabled)
         end

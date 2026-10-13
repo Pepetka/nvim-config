@@ -247,12 +247,15 @@ close_preview()
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
 vim.cmd.PackageInfo()
 close_preview()
-vim.api.nvim_set_hl(0, "PackageInfoUpdate", {})
+vim.cmd.highlight("clear")
 vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "package-info-test" })
 check(
   vim.api.nvim_get_hl(0, { name = "PackageInfoUpdate", link = true }).link == "DiagnosticInfo",
   "theme callback failed"
 )
+vim.api.nvim_set_hl(0, "PackageInfoInstalled", { fg = "#123456" })
+vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "package-info-test" })
+check(vim.api.nvim_get_hl(0, { name = "PackageInfoInstalled" }).fg == 0x123456, "user highlight was overwritten")
 local registry = require("package_info.core.registry")
 check(registry.error({ code = 124 }) == "timeout", "timeout classification")
 check(registry.error({ code = 1, stderr = "Environment variable not found" }) == "config", "config classification")

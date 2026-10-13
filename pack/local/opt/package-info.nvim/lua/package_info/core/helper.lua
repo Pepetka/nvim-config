@@ -67,10 +67,10 @@ function M.new(adapter)
         clear_timer(entry.ticket)
       end
       call(entry.callback, response.result, response.error, done)
-    end, function()
+    end, function(reason)
       if epoch == generation and helper.job == job then
         helper.job = nil
-        fail("Node helper stopped; refresh to restart")
+        fail("Node helper stopped" .. (reason and " (" .. reason .. ")" or "") .. "; refresh to restart")
       end
     end)
     if not ok or result <= 0 then

@@ -85,6 +85,44 @@ test("wanted respects ranges, tags, prereleases; latest is a tag, not the larges
   assert.equal(core.compare(dep("^1.0.0"), metadata).status, "unknown");
   assert.equal(core.compare(dep("^9"), metadata).status, "unavailable");
 });
+test("wanted follows manager selection, deprecations, mismatches and missing installs", () => {
+  const tagged = {
+    versions: ["1.0.0", "1.1.0", "1.2.0"],
+    "dist-tags": { latest: "1.1.0" },
+    deprecated: ["1.0.0"],
+  };
+  assert.equal(core.compare(dep("^1.0.0", "1.0.0"), tagged).wanted, "1.1.0");
+  assert.equal(
+    core.compare(dep("^1.0.0", "1.0.0"), tagged, 0, "yarn").wanted,
+    "1.2.0",
+  );
+  const avoided = { ...tagged, deprecated: ["1.1.0", "1.2.0"] };
+  assert.equal(core.compare(dep("^1.0.0", "1.0.0"), avoided).wanted, "1.0.0");
+  assert.equal(
+    core.compare(dep("^1.0.0", "2.0.0"), metadata).status,
+    "mismatch",
+  );
+  const missing = {
+    ...dep("^1.0.0"),
+    installed: { state: /** @type {const} */ ("missing") },
+  };
+  assert.equal(core.compare(missing, metadata).status, "missing");
+  assert.equal(
+    core.compare({ ...missing, section: "peerDependencies" }, metadata).status,
+    "unknown",
+  );
+  assert.deepEqual(
+    core.packument(
+      {
+        name: "example",
+        versions: { "1.0.0": { deprecated: "old" }, "1.1.0": {} },
+        "dist-tags": { latest: "1.1.0" },
+      },
+      "example",
+    ).deprecated,
+    ["1.0.0"],
+  );
+});
 test("aliases, local protocols and unsupported specs are classified explicitly", () => {
   const alias = core.specification("compat", "npm:@scope/pkg@^1");
   assert.equal(alias.target, "@scope/pkg");
@@ -158,7 +196,7 @@ test("workspace membership, exclusions, hoisting, aliases and section identities
   assert.equal(c.dependencies[0].installed.version, "1.2.0");
   assert.equal(c.dependencies[1].installed.version, "2.0.0");
   assert.equal(c.dependencies[2].section, "devDependencies");
-  assert.equal(c.dependencies[3].installed.state, "unknown");
+  assert.equal(c.dependencies[3].installed.state, "missing");
   assert.equal(
     f.inspect("packages/b/package.json").dependencies[0].installed.version,
     "2.0.0",
@@ -167,7 +205,7 @@ test("workspace membership, exclusions, hoisting, aliases and section identities
   c = f.inspect("packages/excluded/package.json");
   assert.equal(c.root, path.join(f.root, "packages/excluded"));
   assert.equal(c.manager, "npm");
-  assert.equal(c.dependencies[0].installed.state, "unknown");
+  assert.equal(c.dependencies[0].installed.state, "missing");
 });
 test("pnpm yaml workspaces and conflicting locks require explicit choice", (t) => {
   const f = fixture(t);
@@ -195,7 +233,7 @@ test("independent nested projects do not inherit an unrelated parent manager or 
   const c = f.inspect("nested/package.json");
   assert.equal(c.manager, "npm");
   assert.equal(c.root, path.join(f.root, "nested"));
-  assert.equal(c.dependencies[0].installed.state, "unknown");
+  assert.equal(c.dependencies[0].installed.state, "missing");
 });
 test("installed symlinks are followed and unrelated names rejected", (t) => {
   const f = fixture(t);
@@ -213,18 +251,17 @@ test("installed symlinks are followed and unrelated names rejected", (t) => {
     "unknown",
   );
 });
-test("config and lock changes invalidate fingerprints without revealing credentials", (t) => {
+test("config changes invalidate fingerprints without revealing credentials", (t) => {
   const f = fixture(t);
   f.write("package.json", {});
   f.write(".npmrc", "//registry.example/:_authToken=SECRET");
   const first = f.inspect("package.json");
   assert.ok(!JSON.stringify(first).includes("SECRET"));
+  assert.ok(!("fingerprint" in first));
   f.write(".npmrc", "//registry.example/:_authToken=OTHER");
-  assert.notEqual(f.inspect("package.json").fingerprint, first.fingerprint);
   const second = f.inspect("package.json");
   assert.notEqual(second.registry_fingerprint, first.registry_fingerprint);
   f.write("package-lock.json", "{}");
-  assert.notEqual(f.inspect("package.json").fingerprint, second.fingerprint);
   assert.equal(
     f.inspect("package.json").registry_fingerprint,
     second.registry_fingerprint,
@@ -233,6 +270,36 @@ test("config and lock changes invalidate fingerprints without revealing credenti
   assert.equal(
     f.inspect("package.json").registry_fingerprint,
     second.registry_fingerprint,
+  );
+});
+test("registry fingerprints are shared by locations and follow referenced variables", (t) => {
+  const f = fixture(t);
+  f.write("a/package.json", {});
+  f.write("b/package.json", {});
+  f.write("a/.npmrc", "//registry.example/:_authToken=${PI_TEST_TOKEN}");
+  f.write("b/.npmrc", "//registry.example/:_authToken=${PI_TEST_TOKEN}");
+  const a = f.inspect("a/package.json").registry_fingerprint;
+  assert.equal(f.inspect("b/package.json").registry_fingerprint, a);
+  process.env.PI_TEST_TOKEN = "changed";
+  t.after(() => delete process.env.PI_TEST_TOKEN);
+  assert.notEqual(f.inspect("a/package.json").registry_fingerprint, a);
+});
+test("project code execution markers and canonical manager overrides", (t) => {
+  const f = fixture(t);
+  f.write("package.json", { packageManager: "yarn@4.0.0" });
+  assert.equal(f.inspect("package.json").project_code, false);
+  f.write(".yarnrc.yml", "yarnPath: .yarn/releases/yarn.cjs\n");
+  assert.equal(f.inspect("package.json").project_code, true);
+  f.write("other/package.json", {});
+  f.write("other/.pnpmfile.cjs", "");
+  assert.equal(f.inspect("other/package.json").project_code, false);
+  assert.equal(
+    core.inspect({
+      path: path.join(f.root, "other/package.json"),
+      manifest: "{}",
+      managers: { [path.join(f.root, "other") + "/"]: "pnpm" },
+    }).project_code,
+    true,
   );
 });
 test("PnP uses the issuer package API and reports actual versions", (t) => {

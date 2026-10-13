@@ -3,6 +3,7 @@ local options = {
   -- Optional overrides for projects with conflicting lockfiles:
   -- managers = { ["/absolute/path/to/project"] = "yarn@4" },
   -- auto_refresh = { on_enter = true, on_save = true }, -- false: manual checks only
+  -- project_code = { "/absolute/path/to/trusted/projects" }, -- false: never run yarnPath/plugins/.pnp.cjs/.pnpmfile.cjs
   -- sections = { "dependencies", "devDependencies", "optionalDependencies", "peerDependencies" },
   -- exclude = { packages = { "@private/*" }, projects = { "/absolute/path/to/project" } },
   -- timeouts = { registry = 15000, manager = 5000, helper = 5000, bootstrap = 120000 }, -- milliseconds

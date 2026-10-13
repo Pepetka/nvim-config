@@ -40,6 +40,8 @@ class Network {
     this.projects = new Map();
     /** @type {import("./types").NetworkTask[]} */
     this.waiting = [];
+    /** @type {Map<string,import("./types").Flight>} */
+    this.flights = new Map();
   }
   pump() {
     for (
@@ -112,45 +114,74 @@ class Network {
 
   /** @param {import("./types").Client} client @param {string} project @param {string} name @param {AbortSignal} signal @param {boolean} [force] @returns {Promise<import("./types").CacheEntry>} */
   async lookup(client, project, name, signal, force = false) {
-    const key = this.digest(client.key + ":" + name);
+    let identity = client.key;
+    try {
+      if (client.identity) identity = client.identity(name);
+    } catch {}
+    // Metadata depends on the registry and credentials, not on the package directory or session.
+    const key = this.digest(identity + ":" + name);
     const cached = !force && this.cached(key);
     if (cached) return { ...cached, cached: true };
-    // Share only within one check; cancellation of one buffer cannot abort another check's request.
-    const entry = await this.enqueue(
-      project,
-      signal,
-      async () => {
-        try {
-          if (!client.enabled) throw new Error("Networking disabled");
-          const options = client.options(name);
-          const registry = options.registry.replace(/\/$/, "");
-          const url = registry + "/" + name.replace("/", "%2f");
-          const deadline = AbortSignal.timeout(this.timeout);
-          const response = await client.fetch.json(url, {
-            ...options,
-            signal: AbortSignal.any([signal, deadline]),
-            timeout: this.timeout,
-            cache: null,
-            retry: { retries: 0 },
-            fetchRetries: 0,
-            headers: { accept: "application/vnd.npm.install-v1+json" },
-          });
-          return { time: this.now(), metadata: packument(response, name) };
-        } catch (error) {
-          if (signal.aborted) throw error;
-          return { time: this.now(), ...classify(error) };
-        }
-      },
-      Math.max(
-        1,
-        Math.min(
-          this.projectLimit,
-          Number(client.concurrency) || this.projectLimit,
+    // Concurrent checks share one request; it is cancelled only when every waiting check is cancelled.
+    let flight = this.flights.get(key);
+    if (!flight) {
+      const controller = new AbortController();
+      const shared = controller.signal;
+      const promise = this.enqueue(
+        project,
+        shared,
+        async () => {
+          try {
+            if (!client.enabled) throw new Error("Networking disabled");
+            const options = client.options(name);
+            const registry = options.registry.replace(/\/$/, "");
+            const url = registry + "/" + name.replace("/", "%2f");
+            const deadline = AbortSignal.timeout(this.timeout);
+            const response = await client.fetch.json(url, {
+              ...options,
+              signal: AbortSignal.any([shared, deadline]),
+              timeout: this.timeout,
+              cache: null,
+              retry: { retries: 0 },
+              fetchRetries: 0,
+              headers: { accept: "application/vnd.npm.install-v1+json" },
+            });
+            return { time: this.now(), metadata: packument(response, name) };
+          } catch (error) {
+            if (shared.aborted) throw error;
+            return { time: this.now(), ...classify(error) };
+          }
+        },
+        Math.max(
+          1,
+          Math.min(
+            this.projectLimit,
+            Number(client.concurrency) || this.projectLimit,
+          ),
         ),
-      ),
-    );
-    if (!signal.aborted) this.store(key, entry);
-    return entry;
+      );
+      const current = { controller, promise, users: 0 };
+      flight = current;
+      this.flights.set(key, current);
+      promise
+        .then((entry) => {
+          if (!shared.aborted) this.store(key, entry);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (this.flights.get(key) === current) this.flights.delete(key);
+        });
+    }
+    const joined = flight;
+    joined.users++;
+    try {
+      return await abortable(joined.promise, signal);
+    } finally {
+      if (--joined.users === 0 && signal.aborted) {
+        if (this.flights.get(key) === joined) this.flights.delete(key);
+        joined.controller.abort(signal.reason);
+      }
+    }
   }
   /** @param {import("./types").Client} client @param {import("./types").NetworkContext} context @param {AbortSignal} signal @param {boolean} force @param {(event:import("./types").Progress)=>void} emit @returns {Promise<void>} */
   async check(client, context, signal, force, emit) {
@@ -179,7 +210,7 @@ class Network {
               name: dep.name,
               section: dep.section,
               result: entry.metadata
-                ? compare(dep, entry.metadata, this.now())
+                ? compare(dep, entry.metadata, this.now(), context.manager)
                 : undefined,
               error: entry.error,
               kind: entry.kind,
@@ -200,7 +231,7 @@ class Network {
 module.exports = { Network };
 /**
  * @param {{inspect:(input:import("./types").InspectInput)=>import("./types").Context,
- * compare:(dep:import("./types").Declaration,metadata:import("./types").Metadata,now:number)=>import("./types").Comparison,
+ * compare:(dep:import("./types").Declaration,metadata:import("./types").Metadata,now:number,manager?:string)=>import("./types").Comparison,
  * prepare:(input:import("./types").ConfigureInput,signal?:AbortSignal)=>Promise<import("./types").Client|{fallback:true}>,
  * network:Network,now:()=>number,send:(response:import("./types").Response)=>void}} adapters
  */
@@ -297,12 +328,24 @@ function createDispatcher(adapters) {
       result = { complete: true };
     } else if (request.method === "inspect")
       result = adapters.inspect(request.input);
-    else
+    else {
+      let metadata;
+      try {
+        metadata = require("./core/metadata.cjs").parseRegistry(
+          request.input.stdout,
+        );
+      } catch {
+        // Distinguishes invalid registry output from helper transport failures.
+        if (!stopped) adapters.send({ id, result: { invalid: true } });
+        return;
+      }
       result = adapters.compare(
         request.input.dep,
-        require("./core/metadata.cjs").parseRegistry(request.input.stdout),
+        metadata,
         adapters.now(),
+        request.input.manager,
       );
+    }
     if (!stopped) adapters.send({ id, result });
   }
   function teardown() {

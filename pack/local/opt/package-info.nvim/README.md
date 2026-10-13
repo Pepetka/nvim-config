@@ -44,6 +44,7 @@ All durations below are in milliseconds; limits must be integers. Defaults:
 require("package_info").setup({
   managers = {},
   fast_registry = true,
+  project_code = true,
   auto_refresh = { on_enter = true, on_save = true },
   sections = { "dependencies", "devDependencies", "optionalDependencies", "peerDependencies" },
   exclude = { packages = {}, projects = {} },
@@ -57,7 +58,9 @@ require("package_info").setup({
   },
   display = {
     enabled = true,
-    statuses = { "installed", "update", "major", "unavailable", "not_found", "unsupported", "error" },
+    statuses = {
+      "installed", "update", "major", "mismatch", "missing", "unavailable", "not_found", "unsupported", "error",
+    },
     icons = { installed = "󰏖", update = "󰚰", error = "󰂡" },
     prefix = "  ", virt_text_pos = "eol",
     float = { border = "rounded", focusable = true }, -- optional max_width, max_height
@@ -67,6 +70,13 @@ require("package_info").setup({
 
 - `auto_refresh = false` disables both triggers; a table controls them independently. Manual refresh and
   buffer toggling remain available. Editing and configuration changes still invalidate stale annotations.
+  Entering a buffer (including `FocusGained`, reloads and external changes) keeps a fresh check; it reruns only
+  after the cache lifetime, error backoff, or a change of lockfiles, rc files or install markers
+  (`node_modules/.package-lock.json`, `.modules.yaml`, `.yarn-state.yml`, `.yarn/install-state.gz`).
+  Saving a manifest, lockfile or rc file rechecks other visible manifests below that directory.
+- `project_code` controls manager commands that execute repository code: Yarn `yarnPath` and plugins,
+  `.pnp.cjs`, `.yarnrc` `yarn-path` and pnpm `.pnpmfile.cjs`. `true` allows them, `false` disables registry
+  checks for such projects, and a list of absolute directories trusts only their subtrees.
 - `sections` selects declaration sections before manager/registry checks. An empty list checks no dependencies.
 - `exclude.packages` matches declaration names and npm alias targets with full-name glob patterns (`*`, `?`);
   other characters are literal. For example, `"@private/*"` excludes a scope. `exclude.projects` contains
@@ -86,7 +96,9 @@ require("package_info").setup({
 - `display.enabled = false` hides annotations while checks and details remain available. `statuses` selects
   visible annotation categories; a hidden update/problem can fall back to the installed version when
   `installed` is enabled. An empty list hides all annotations. Empty icon strings enable plain text.
-  `virt_text_pos` accepts `"eol"`, `"eol_right_align"` or `"right_align"`. Floating details/status windows accept
+  Highlight groups `PackageInfoUpdate`, `PackageInfoLatest`, `PackageInfoMismatch`, `PackageInfoMissing`,
+  `PackageInfoError`, `PackageInfoInstalled` and `PackageInfoUnsupported` are defined as defaults, so
+  colorscheme and user definitions take precedence. `virt_text_pos` accepts `"eol"`, `"eol_right_align"` or `"right_align"`. Floating details/status windows accept
   `border` (`none`, `single`, `double`, `rounded`, `solid`, `shadow`), `focusable` and positive `max_width`/`max_height`.
 
 | Command                | Action                                                  |
@@ -95,6 +107,9 @@ require("package_info").setup({
 | `:PackageInfoRefresh`  | Recheck the saved manifest, using the registry cache    |
 | `:PackageInfoRefresh!` | Bypass cache/backoff and retry a failed helper          |
 | `:PackageInfoToggle`   | Toggle annotations and automatic checks for this buffer |
+
+Only regular `package.json` files are checked: Diffview, fugitive and other special buffers, and manifests
+inside `node_modules`, are ignored.
 | `:PackageInfoStatus`   | Helper, manager, workspace, request state and errors    |
 
 Annotations show the actual installed version as soon as local inspection finishes. Registry results arrive
@@ -102,8 +117,11 @@ incrementally and replace it with an update within the declared range, a newer `
 The first annotation render is immediate; subsequent updates are coalesced within 16 ms per buffer.
 Each flush uses the latest valid state and skips unchanged annotation text/highlights. Editing, disabling,
 replacing or closing a buffer cancels its pending render, as does plugin teardown.
-Details distinguish the declaration, actual installed version, maximum satisfying version (`wanted`),
-and the registry's `latest` tag. Missing installations stay unknown, including optional/peer dependencies.
+Details distinguish the declaration, actual installed version, the version the manager would choose (`wanted`)
+and the registry's `latest` tag. npm and pnpm choose `latest` when it satisfies the range, otherwise the
+highest satisfying non-deprecated version; Yarn chooses the highest satisfying version.
+`mismatch` marks an installed version outside the declared range. `missing` marks regular and development
+dependencies without an installation; optional and peer dependencies stay unknown.
 The latest tag is informational; overrides and resolutions may change what a future install chooses.
 Prereleases and tag declarations do not get unrelated stable-version suggestions.
 
@@ -125,13 +143,18 @@ require("package_info").setup({
 
 One persistent Node helper checks registries directly through the installed npm's transport, with at most
 32 HTTP requests globally and 16 per workspace, respecting lower manager connection limits.
-npm configuration uses npm's native reader;
+npm configuration uses npm's native reader (shims from Volta, mise or asdf are resolved with `npm root -g`);
 Yarn/pnpm export their effective settings once per configuration. Default Yarn settings need no separate readers.
 Scope registries, authentication, proxy and TLS settings are preserved. Custom Yarn plugins or host-specific
 network settings use the manager CLI for compatibility; CLI checks run at most four processes globally and
 two per workspace, with Yarn 2–4 batching up to eight packages from the same scope.
 
 Registry metadata is cached in memory and on disk for 15 minutes, including across Neovim restarts.
+Cache keys combine the registry URL, a digest of its credentials and the package name, so workspace packages,
+projects and terminal sessions with the same registry access share entries. Concurrent checks of the same
+package share one request, which is cancelled only when every waiting check is cancelled. Registry fingerprints include
+rc contents, registry-related environment variables (`npm_config_*`, `YARN_*`, `PNPM_*`, `COREPACK_*`, proxies,
+CA settings, `HOME`, `XDG_CONFIG_HOME`, `PREFIX`) and variables referenced as `${NAME}` in rc files.
 The disk cache contains only versions, dist-tags and timestamps, with private directory/file permissions.
 Credentials and registry URLs are never persisted. Errors back off in memory for 30 seconds.
 The helper's metadata memory cache retains at most 2000 entries, including reads from disk.
@@ -149,7 +172,11 @@ Editing, disabling or closing a buffer cancels its checks
 and hides annotations; stale responses cannot restore them. Cancellation also discards pending registry
 configuration and its late result. Invalid or duplicate-key JSON is skipped.
 Common configuration/auth/network errors appear once in the buffer and in status; raw command output
-and credentials are never shown.
+and credentials are never shown. Helper failures show the exit code and the last stderr line in status.
+pnpm commands run with `manage-package-manager-versions=false` and `pm-on-fail=ignore`, so pnpm never downloads
+the version declared by `packageManager`; a different installed major is reported instead.
+The helper runtime is copied only when its sources change, and concurrent Neovim instances share one
+`npm ci` through a lock directory.
 
 ## Architecture and types
 
@@ -216,6 +243,9 @@ cp tests/package{,-lock}.json /tmp/package-info-type-runtime/
 (cd /tmp/package-info-type-runtime && npm ci --ignore-scripts --no-audit --no-fund)
 PACKAGE_INFO_TYPE_RUNTIME=/tmp/package-info-type-runtime node tests/types_check.cjs
 ```
+
+Any directory works for both runtimes; the lockfiles contain only relative `node_modules` paths.
+Format helper sources and Node tests with Prettier defaults (`npx prettier --check "scripts/**/*.cjs" "tests/*.cjs"`).
 
 The Neovim tests find the JSON Tree-sitter parser under `stdpath("data")/site`; set
 `PACKAGE_INFO_TEST_PARSER_RTP` if it is installed elsewhere.

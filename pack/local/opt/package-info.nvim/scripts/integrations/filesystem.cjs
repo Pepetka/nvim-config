@@ -86,7 +86,52 @@ function installed(dep, dir, root, pnp = false) {
     }
     if (current === root) break;
   }
-  return { state: "unknown", reason: "No installed package found" };
+  return { state: "missing", reason: "No installed package found" };
+}
+/** @param {string} dir @returns {string} */
+function canonical(dir) {
+  try {
+    return fs.realpathSync(dir);
+  } catch {
+    return dir;
+  }
+}
+/** @param {Record<string,string>|undefined} managers @returns {Map<string,string>} */
+function managerOverrides(managers) {
+  /** @type {Map<string,string>} */
+  const result = new Map();
+  for (const [dir, manager] of Object.entries(managers || {})) {
+    if (typeof manager !== "string") continue;
+    const resolved = path.resolve(dir);
+    result.set(resolved, manager);
+    result.set(canonical(resolved), manager);
+  }
+  return result;
+}
+/** @param {string} file @returns {unknown} */
+function yamlFile(file) {
+  try {
+    return yaml.parse(read(file));
+  } catch {
+    return undefined;
+  }
+}
+/** @param {string[]} dirs @param {string} manager @returns {boolean} */
+function projectCode(dirs, manager) {
+  return dirs.some((current) => {
+    if (fs.existsSync(path.join(current, ".pnp.cjs"))) return true;
+    if (manager === "pnpm")
+      return fs.existsSync(path.join(current, ".pnpmfile.cjs"));
+    if (manager !== "yarn") return false;
+    const config = yamlFile(path.join(current, ".yarnrc.yml"));
+    if (
+      object(config) &&
+      (typeof config.yarnPath === "string" ||
+        (Array.isArray(config.plugins) && config.plugins.length > 0))
+    )
+      return true;
+    return /^\s*yarn-path\s/m.test(read(path.join(current, ".yarnrc")));
+  });
 }
 /** @param {import("../types").InspectInput} input @returns {import("../types").Context} */
 function inspect(input) {
@@ -103,7 +148,7 @@ function inspect(input) {
     )
       break;
   }
-  const applicable = ancestors(dir).slice(0, ancestors(dir).indexOf(root) + 1);
+  const applicable = chain.slice(0, chain.indexOf(root) + 1);
   let marker;
   for (const current of applicable) {
     const pkg =
@@ -126,9 +171,15 @@ function inspect(input) {
       if (fs.existsSync(path.join(current, file))) locks.add(manager);
     }
   }
+  const overrides = managerOverrides(input.managers);
   const override =
     input.override ||
-    applicable.map((current) => input.managers?.[current]).find(Boolean);
+    applicable
+      .map(
+        (current) =>
+          overrides.get(current) || overrides.get(canonical(current)),
+      )
+      .find(Boolean);
   const selection = selectManager(override, marker, [...locks]);
   const selected = selection.selected;
   /** @type {import("../types").Context} */
@@ -139,89 +190,66 @@ function inspect(input) {
     expected_major: selection.expected_major,
     marker,
     error: selection.error,
-    fingerprint: "",
     registry_fingerprint: "",
     pnp: false,
     custom_plugins: false,
+    project_code: false,
     overrides: false,
     dependencies: [],
   };
-  const hash = crypto.createHash("sha256");
-  hash.update(input.manifest);
-  hash.update(String(selected));
-  hash.update(input.environment_hash || "");
+  // Registry identity depends on rc contents and referenced variables, not on the package location.
   const registryHash = crypto.createHash("sha256");
-  registryHash.update(dir);
-  registryHash.update(root);
   registryHash.update(String(selected));
   registryHash.update(input.environment_hash || "");
-  const configFiles = [
-    "package.json",
-    "package-lock.json",
-    "npm-shrinkwrap.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    "pnpm-workspace.yaml",
-    ".npmrc",
-    ".yarnrc",
-    ".yarnrc.yml",
-    ".pnp.cjs",
-    ".pnp.loader.mjs",
-  ];
-  // Include user rc contents in the fingerprint, never in responses or diagnostics.
+  const home = process.env.HOME;
+  /** @param {string} label @param {string} content */
+  const remember = (label, content) => {
+    registryHash.update(label);
+    registryHash.update(content);
+    for (const match of content.matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g))
+      registryHash.update(match[1] + "=" + (process.env[match[1]] ?? ""));
+  };
   for (const current of new Set(
-    [...chain, process.env.HOME].filter((value) => typeof value === "string"),
+    [...chain, home].filter((value) => typeof value === "string"),
   )) {
-    for (const file of configFiles) {
+    for (const file of [
+      ".npmrc",
+      ".yarnrc",
+      ".yarnrc.yml",
+      "pnpm-workspace.yaml",
+    ]) {
       const filename = path.join(current, file);
-      if (fs.existsSync(filename)) {
-        hash.update(filename);
-        const content = read(filename);
-        hash.update(content);
-        if (
-          [".npmrc", ".yarnrc", ".yarnrc.yml", "pnpm-workspace.yaml"].includes(
-            file,
-          )
-        ) {
-          registryHash.update(filename);
-          registryHash.update(content);
-        }
-      }
+      if (fs.existsSync(filename))
+        remember(
+          (current === home ? "home:" : "project:") + file,
+          read(filename),
+        );
     }
   }
-  if (input.user_config) {
-    hash.update(input.user_config);
-    hash.update(read(input.user_config));
-    registryHash.update(input.user_config);
-    registryHash.update(read(input.user_config));
-  }
-  context.fingerprint = hash.digest("hex");
+  if (input.user_config) remember(input.user_config, read(input.user_config));
   context.registry_fingerprint = registryHash.digest("hex");
   context.pnp = applicable.some((current) =>
     fs.existsSync(path.join(current, ".pnp.cjs")),
   );
-  context.custom_plugins = [
-    ...new Set(
-      [...chain, process.env.HOME].filter((value) => typeof value === "string"),
-    ),
-  ].some((current) => {
-    try {
-      /** @type {unknown} */
-      const config = yaml.parse(read(path.join(current, ".yarnrc.yml")));
+  if (selection.manager === "yarn")
+    context.custom_plugins = [
+      ...new Set([...chain, home].filter((value) => typeof value === "string")),
+    ].some((current) => {
+      const config = yamlFile(path.join(current, ".yarnrc.yml"));
       return (
         object(config) &&
         Array.isArray(config.plugins) &&
         config.plugins.length > 0
       );
-    } catch {
-      return false;
-    }
-  });
+    });
+  context.project_code = projectCode(applicable, selection.manager || "");
+  const rootManifest =
+    root === dir ? manifest : json(path.join(root, "package.json"));
   context.overrides = Boolean(
     manifest.overrides ||
     manifest.resolutions ||
-    json(path.join(root, "package.json")).overrides ||
-    json(path.join(root, "package.json")).resolutions,
+    rootManifest.overrides ||
+    rootManifest.resolutions,
   );
   context.dependencies = sections.flatMap((section) =>
     Object.entries(manifest[section] || {}).map(([name, spec]) => {

@@ -50,17 +50,35 @@ function specification(name, value) {
     reason: "Git, URL, catalog and patch specifications are not compared",
   };
 }
-/** @param {import("../types").Declaration} dep @param {import("../types").Metadata} metadata @param {number} [checked_at] @returns {import("../types").Comparison} */
-function compare(dep, metadata, checked_at) {
-  const versions = (metadata.versions || []).filter((v) => semver.valid(v));
+/** @param {import("../types").Declaration} dep @param {import("../types").Metadata} metadata @param {string} [range] @param {string} [manager] @returns {string | undefined} */
+function pick(dep, metadata, range, manager) {
   const tags = metadata["dist-tags"] || {};
-  const resolved =
-    dep.kind === "tag"
-      ? semver.valid(tags[dep.range || ""])
-        ? tags[dep.range || ""]
-        : undefined
-      : semver.maxSatisfying(versions, dep.range || "*");
-  const wanted = resolved || undefined;
+  if (dep.kind === "tag")
+    return semver.valid(tags[range || ""]) ? tags[range || ""] : undefined;
+  const versions = (metadata.versions || []).filter((v) => semver.valid(v));
+  const deprecated = new Set(metadata.deprecated || []);
+  const latest = tags.latest;
+  // npm and pnpm prefer the latest tag when it satisfies the range; Yarn takes the highest match.
+  if (
+    manager !== "yarn" &&
+    semver.valid(latest) &&
+    !deprecated.has(latest) &&
+    semver.satisfies(latest, range || "*")
+  )
+    return latest;
+  return (
+    semver.maxSatisfying(
+      versions.filter((v) => !deprecated.has(v)),
+      range || "*",
+    ) ||
+    semver.maxSatisfying(versions, range || "*") ||
+    undefined
+  );
+}
+/** @param {import("../types").Declaration} dep @param {import("../types").Metadata} metadata @param {number} [checked_at] @param {string} [manager] @returns {import("../types").Comparison} */
+function compare(dep, metadata, checked_at, manager) {
+  const tags = metadata["dist-tags"] || {};
+  const wanted = pick(dep, metadata, dep.range, manager);
   const latest = semver.valid(tags.latest) ? tags.latest : undefined;
   const current = dep.installed?.version;
   /** @type {import("../types").Comparison["status"]} */
@@ -68,7 +86,9 @@ function compare(dep, metadata, checked_at) {
   if (!wanted) status = "unavailable";
   else if (current && semver.valid(current)) {
     status = "current";
-    if (semver.gt(wanted, current)) status = "update";
+    if (dep.kind === "range" && !semver.satisfies(current, dep.range || "*"))
+      status = "mismatch";
+    else if (semver.gt(wanted, current)) status = "update";
     else if (
       dep.kind === "range" &&
       latest &&
@@ -77,7 +97,12 @@ function compare(dep, metadata, checked_at) {
       !semver.prerelease(wanted)
     )
       status = "major";
-  }
+  } else if (
+    dep.installed?.state === "missing" &&
+    dep.section !== "optionalDependencies" &&
+    dep.section !== "peerDependencies"
+  )
+    status = "missing";
   return { wanted, latest, status, checked_at };
 }
 
