@@ -100,14 +100,16 @@ host prefixes for correct Unicode coordinates. Completion and hover reuse the im
 snapshot and cached region when changedtick, filetype and the active template are unchanged.
 Moving outside that template triggers extraction again; switching templates invalidates
 pending requests even without host edits. Setup, allocation replacement and host deletion
-clear snapshots. Cached context still checks the caller filter and rejects substitutions.
+clear snapshots. Cached context still checks the caller filter and resolves nested CSS templates
+inside substitutions; ordinary JavaScript remains outside CSS.
 Its name has no `.css` extension and its filetype stays empty, preventing ordinary CSS
 server attachment. Only plugin-owned CSS clients with matching registered server names and roots are reused;
 generated diagnostics are suppressed. Clients are stopped after their last attachment
 is released, without stopping foreign clients or other adapters' active documents.
 
 The generated document wraps the template in `a{` / `;}` and masks substitutions with
-spaces and a declaration placeholder, preserving UTF-16 widths. A segment map translates
+spaces and a value or declaration placeholder, preserving UTF-16 widths. Standalone substitutions
+produce a dummy declaration so the CSS server keeps offering properties after them. A segment map translates
 between generated text and host bytes. Requests and edits use the client's negotiated
 UTF-8, UTF-16 or UTF-32 encoding, including characters after masked substitutions.
 

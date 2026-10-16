@@ -684,7 +684,7 @@ t.test("reads are bounded by template rows and edits retain absolute host coordi
     },
   })
 end)
-t.test("cached context rejects substitutions and still applies mutable buffer filters", function()
+t.test("cached context rechecks substitutions and still applies mutable buffer filters", function()
   local instance, state, ctx, _, adapter = fixture()
   state.text = { "css`color: ${value};`" }
   state.region.end_col = #state.text[1] - 1
@@ -703,15 +703,18 @@ t.test("cached context rejects substitutions and still applies mutable buffer fi
   })
   instance.complete(ctx, empty)
   state.replies[1](nil, { items = {} })
+  instance.complete(ctx, empty)
+  state.replies[2](nil, { items = {} })
+  t.equal(extractions, 1)
   ctx.cursor[2] = 13
   instance.complete(ctx, empty)
-  t.equal(extractions, 1)
-  t.equal(#state.replies, 1)
+  t.equal(extractions, 2)
+  t.equal(#state.replies, 2)
   ctx.cursor[2] = 4
   allowed = false
   instance.complete(ctx, empty)
-  t.equal(extractions, 1)
-  t.equal(#state.replies, 1)
+  t.equal(extractions, 2)
+  t.equal(#state.replies, 2)
 end)
 t.test("discarded allocations and setup rebuild snapshots at the same host tick", function()
   local instance, state, ctx, _, adapter = fixture()

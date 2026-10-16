@@ -6,7 +6,7 @@ local M = {}
 ---@return string
 function M.placeholder(before)
   local declaration = before:match("[^;{}]*$") or ""
-  return declaration:find(":", 1, true) and "0" or ";"
+  return declaration:find(":", 1, true) and "0" or "x:0;"
 end
 
 ---@param host_lines string[]
@@ -36,6 +36,20 @@ function M.build(host_lines, region, host_start_row)
   table.sort(holes, function(a, b)
     return a.start_row < b.start_row or (a.start_row == b.start_row and a.start_col < b.start_col)
   end)
+  local placeholders = {}
+  for index, hole in ipairs(holes) do
+    local before = M.extract(host_lines, {
+      start_row = region.start_row,
+      start_col = region.start_col,
+      end_row = hole.start_row,
+      end_col = hole.start_col,
+      substitutions = {},
+    }, host_start_row)
+    local placeholder = M.placeholder(table.concat(before, "\n"))
+    local text = table.concat(M.extract(host_lines, hole, host_start_row))
+    local width = assert(coordinates.character(text, #text, "utf-16"))
+    placeholders[index] = #placeholder > width and "x:;" or placeholder
+  end
   ---@type CssInJsDocument
   local result = {
     lines = { "a{" },
@@ -64,23 +78,15 @@ function M.build(host_lines, region, host_start_row)
       }
       length = length + #replacement
     end
-    for _, hole in ipairs(holes) do
+    for hole_index, hole in ipairs(holes) do
       if row >= hole.start_row and row <= hole.end_row then
         local first = row == hole.start_row and hole.start_col - base or 0
         local last = row == hole.end_row and hole.end_col - base or #line
         append(consumed, first, line:sub(consumed + 1, first), false)
         local width = assert(coordinates.character(line:sub(first + 1, last), last - first, "utf-16"))
-        local replacement = string.rep(" ", width)
-        if row == hole.start_row and width > 0 then
-          local before_lines = M.extract(host_lines, {
-            start_row = region.start_row,
-            start_col = region.start_col,
-            end_row = hole.start_row,
-            end_col = hole.start_col,
-            substitutions = {},
-          }, host_start_row)
-          replacement = M.placeholder(table.concat(before_lines, "\n")) .. replacement:sub(2)
-        end
+        local placeholder = placeholders[hole_index]:sub(1, width)
+        local replacement = placeholder .. string.rep(" ", width - #placeholder)
+        placeholders[hole_index] = placeholders[hole_index]:sub(width + 1)
         append(first, last, replacement, true)
         consumed = last
       end

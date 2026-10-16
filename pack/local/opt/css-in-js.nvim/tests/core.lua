@@ -105,7 +105,7 @@ t.test("reject surrogate split and invalid positions", function()
 end)
 t.test("placeholder selection", function()
   t.equal(document.placeholder("color: "), "0")
-  t.equal(document.placeholder("; "), ";")
+  t.equal(document.placeholder("; "), "x:0;")
 end)
 t.test("document wrapper and extraction", function()
   t.equal(snapshot.lines, { "a{", "color: red;", ";}" })
@@ -175,6 +175,47 @@ t.test("multiline substitutions and immutable host input", function()
     assert(document.host_range(snap, { start = position, ["end"] = position }, "utf-16")).start,
     { line = 2, character = 3 }
   )
+end)
+t.test("standalone substitutions include a terminator without a host semicolon", function()
+  for _, case in ipairs({
+    { "x", "x:0; padding: 1px;" },
+    { "😀", "x:0;  padding: 1px;" },
+    { "", "x:; padding: 1px;" },
+  }) do
+    local expression, expected = case[1], case[2]
+    local text = "css`${" .. expression .. "} padding: 1px;`"
+    local value = region(4, #text - 1)
+    value.substitutions = { region(4, 7 + #expression) }
+    local snap = document.build({ text }, value)
+    t.equal(snap.lines[2], expected)
+  end
+end)
+t.test("standalone substitutions form declarations across short and empty lines", function()
+  for _, middle in ipairs({ "x", "", "😀" }) do
+    local host = { "css`${", middle, "}; padding: 1px;`" }
+    local value = {
+      start_row = 0,
+      start_col = 4,
+      end_row = 2,
+      end_col = #host[3] - 1,
+      substitutions = { { start_row = 0, start_col = 4, end_row = 2, end_col = 1, substitutions = {} } },
+    }
+    local snap = document.build(host, value)
+    local expected = middle == "" and "x:;; padding: 1px;" or "x:0;; padding: 1px;"
+    local masked = table.concat(snap.lines, "", 2, #snap.lines - 1)
+    t.equal((masked:gsub(" ", "")), (expected:gsub(" ", "")))
+    for index, content in ipairs(document.extract(host, value)) do
+      t.equal(
+        coordinates.character(snap.lines[index + 1], #snap.lines[index + 1], "utf-16"),
+        coordinates.character(content, #content, "utf-16")
+      )
+    end
+    local position = assert(document.position(snap, 2, 3, "utf-16"))
+    t.equal(assert(document.host_range(snap, { start = position, ["end"] = position }, "utf-16")).start, {
+      line = 2,
+      character = 3,
+    })
+  end
 end)
 t.test("completion defaults and response are immutable", function()
   local result = {

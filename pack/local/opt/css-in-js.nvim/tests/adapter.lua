@@ -84,8 +84,11 @@ local function with_client(fn)
     fault(vim.lsp, "get_client_by_id", function(id)
       return id == client.id and client or nil
     end, function()
-      fn(client, replies)
+      local ok, err = xpcall(function()
+        fn(client, replies)
+      end, debug.traceback)
       plugin.teardown()
+      assert(ok, err)
     end)
   end)
 end
@@ -190,6 +193,50 @@ t.test("switching regions without edits rejects the old response", function()
     t.equal(calls, 0)
   end)
 end)
+for _, ft in ipairs({ "javascript", "javascriptreact", "typescript", "typescriptreact" }) do
+  t.test(ft .. " switches between cached outer and nested CSS templates", function()
+    with_client(function(_, replies)
+      local buf, source, ctx = fixture(ft)
+      local generic = (ft == "typescript" or ft == "typescriptreact") and "<{ $withMinusPadding: boolean }>" or ""
+      local lines = {
+        "export const StyledWrapper = styled.div" .. generic .. "`",
+        "  ${({ $withMinusPadding }) =>",
+        "    $withMinusPadding",
+        "      ? css`",
+        "          margin-left: -30px;",
+        "        `",
+        "      : ''};",
+        "",
+        "  padding-inline: 30px;",
+        "  padding-top: 29px;",
+        "  padding-bottom: 20px;",
+        "  background-color: ${({ theme }) => theme.common.secondary_background_color_300};",
+        "`;",
+      }
+      api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+      local tick = api.nvim_buf_get_changedtick(buf)
+      local completed = 0
+      for index, row in ipairs({ 9, 5, 9, 5 }) do
+        ctx.cursor, ctx.line = { row, 10 }, lines[row]
+        source:get_completions(ctx, function()
+          completed = completed + 1
+        end)
+        t.equal(#replies, index)
+        replies[index](nil, { items = {} })
+        t.equal(completed, index)
+      end
+      ctx.cursor, ctx.line = { 3, 6 }, lines[3]
+      source:get_completions(ctx, function(response)
+        t.equal(response.items, {})
+        completed = completed + 1
+      end)
+      t.equal(#replies, 4)
+      t.equal(completed, 5)
+      t.equal(api.nvim_buf_get_changedtick(buf), tick)
+      api.nvim_buf_delete(buf, { force = true })
+    end)
+  end)
+end
 t.test("host deletion and repeated teardown remove all hidden buffers", function()
   with_client(function(_, replies)
     local buf, source, ctx = fixture()

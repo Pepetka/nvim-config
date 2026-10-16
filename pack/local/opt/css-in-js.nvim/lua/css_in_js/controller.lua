@@ -109,9 +109,9 @@ function M.new(adapter)
       and info
       and entry.filetype == info.filetype
       and entry.tick == adapter.tick(buf)
-      and regions.contains(snapshot.region, row, col, true)
+      and regions.active(snapshot.region, row, col)
     then
-      return regions.active(snapshot.region, row, col) and config.copy(snapshot.region) or nil
+      return config.copy(snapshot.region)
     end
     local ok, region = pcall(adapter.extract, buf, row, col)
     if not ok then
