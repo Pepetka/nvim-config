@@ -11,6 +11,29 @@ end)
 
 local M = {}
 
+-- Native expressions update cursor-dependent fields without rewriting the statusline.
+local function location()
+  local win = vim.api.nvim_get_current_win()
+  return string.format("%%{printf('%%3d:%%-2d', line('.', %d), charcol('.', %d))}", win, win)
+end
+
+local function progress()
+  local win = vim.api.nvim_get_current_win()
+  local current = "line('.', " .. win .. ")"
+  local total = "max([1, line('$', " .. win .. ")])"
+  return "%{"
+    .. current
+    .. " == 1 ? 'Top' : "
+    .. current
+    .. " == "
+    .. total
+    .. " ? 'Bot' : printf('%2d%%', "
+    .. current
+    .. " * 100 / "
+    .. total
+    .. ")}"
+end
+
 function M.setup()
   local colors = require("utils.colors")
   local transparent = "none"
@@ -82,9 +105,22 @@ function M.setup()
       },
       ignore_focus = { "NvimTree", "mason", "lazy", "qf", "dashboard", "cheatsheet" },
       refresh = {
-        statusline = 100,
-        tabline = 100,
-        winbar = 100,
+        statusline = 1000,
+        events = {
+          "BufWritePost",
+          "BufModifiedSet",
+          "SessionLoadPost",
+          "FileChangedShellPost",
+          "VimResized",
+          "ModeChanged",
+          "DiagnosticChanged",
+          "LspAttach",
+          "LspDetach",
+          "RecordingEnter",
+          "RecordingLeave",
+          "CmdlineChanged",
+          "CmdlineLeave",
+        },
       },
     },
     sections = {
@@ -109,7 +145,7 @@ function M.setup()
       },
       lualine_x = {
         {
-          "location",
+          location,
           color = function()
             return { fg = colors.fg }
           end,
@@ -387,7 +423,7 @@ function M.setup()
   space(true, all(conditions.buffer_not_empty, conditions.buffer_editable, conditions.width_gt_100))
 
   ins_right({
-    "progress",
+    progress,
     cond = conditions.width_gt_100,
     color = function()
       return { fg = colors.fg, bg = colors.surface }
@@ -399,7 +435,7 @@ function M.setup()
   space(true, conditions.width_gt_100)
 
   ins_right({
-    "location",
+    location,
     color = function()
       return { fg = colors.surface, bg = colors.palette.purple, gui = "bold" }
     end,
@@ -408,6 +444,14 @@ function M.setup()
   })
 
   lualine.setup(config)
+  -- Focus refreshes must include floats, which lualine's tabpage scope skips.
+  vim.api.nvim_create_autocmd({ "VimEnter", "WinEnter", "BufEnter", "FileType" }, {
+    group = vim.api.nvim_create_augroup("LualineFocusRefresh", { clear = true }),
+    callback = function(args)
+      lualine.refresh({ scope = "window", place = { "statusline" }, force = args.event == "VimEnter" })
+    end,
+  })
+  lualine.refresh({ scope = "all", place = { "statusline" }, force = true })
 end
 
 M.setup()

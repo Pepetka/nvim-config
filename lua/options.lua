@@ -39,7 +39,8 @@ opt.formatoptions:append("mM") -- Correctly break multi-byte characters (e.g. CJ
 
 opt.splitbelow = true -- Open horizontal splits below the current window
 opt.splitright = true -- Open vertical splits to the right
-opt.laststatus = 3 -- Use a single global statusline for all windows
+opt.laststatus = 0 -- Lualine enables the global statusline when its content is ready
+opt.cmdheight = 0 -- Set before termguicolors to avoid a black TUI startup band
 opt.splitkeep = "screen" -- Keep screen position stable when opening/closing splits
 opt.winminwidth = 5 -- Minimum window width to prevent accidental collapse
 
@@ -50,7 +51,6 @@ opt.inccommand = "split" -- Show preview of substitutions in a split window
 opt.termguicolors = true -- Enable 24-bit RGB color support
 opt.showmode = false -- Don't show mode indicator (-- INSERT --), statusline handles it
 opt.title = true -- Set terminal window title to the current file name
-opt.cmdheight = 0 -- Hide the command line when not in use
 opt.winblend = 0 -- No transparency for floating windows
 opt.pumheight = 10 -- Maximum number of items to show in the popup menu
 opt.winborder = "rounded" -- Border style for floating windows
