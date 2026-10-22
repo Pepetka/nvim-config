@@ -65,6 +65,9 @@ No build step. Package-info has focused Node and headless Neovim tests
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/dashboard.lua` — dashboard layout snapshots and seasonal content
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u ./init.lua -i NONE -n -c 'lua dofile("tests/theme_ui.lua")'` — full theme integration
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme_startup.lua` — first dashboard frame, theme changes, resize and reopen with a real RPC UI
+- `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/lualine.lua` — statusline position/progress, search count,
+  recording, splits, floats and per-event renders with a real RPC UI
+- `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/lualine_startup.lua` — native TUI startup without a black band
 - `stylua --check .` — verify formatting
 - `stylua .` — apply formatting
 - `:source %` (`<leader>rs`) — reload current file

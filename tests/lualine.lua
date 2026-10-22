@@ -9,6 +9,8 @@ for i = 1, 500 do
 end
 lines[10] = "а界z"
 vim.fn.writefile(lines, temporary .. "/scroll.txt")
+vim.fn.writefile({ "x", "sample row 12", "sample row 13", "lonely" }, temporary .. "/other.txt")
+vim.fn.writefile({ "Word word WORD", "Word", "Sub sub" }, temporary .. "/case.txt")
 local child
 
 local function check(mode)
@@ -254,10 +256,187 @@ local function check(mode)
   settle()
   status_matches(500, 1, "Bot")
 
+  -- Shorter than the lualine timer, so only native redraws can satisfy it.
+  local function expect_status(text, label, present)
+    local ok = vim.wait(400, function()
+      return (frames[#frames].status:find(text, 1, true) ~= nil) == (present ~= false)
+    end, 5)
+    assert(ok, label .. ": " .. frames[#frames].status)
+  end
+
+  -- Plugins finish debounced redraws first; a redraw loop flushes about 20 frames in the measured 300 ms.
+  local function idle_frames()
+    vim.wait(500)
+    local before = #frames
+    vim.wait(300)
+    return #frames - before
+  end
+
+  request("nvim_command", { "normal! gg" })
+  request("nvim_input", { "/row 1[1-9]\\><CR>" })
+  expect_status("[1/9]", "Search count did not appear")
+  lua("_G.statusline_writes = 0")
+  request("nvim_input", { "n" })
+  expect_status("[2/9]", "Search count lagged behind n")
+  request("nvim_input", { "G" })
+  expect_status("[9/9]", "Search count ignored cursor movement")
+  assert(lua("return _G.statusline_writes") == 0, "Search count rewrote the statusline")
+
+  request("nvim_input", { "osample row 17" })
+  vim.wait(100)
+  assert(
+    frames[#frames].status:find("[9/9]", 1, true),
+    "Search count recounted in Insert mode: " .. frames[#frames].status
+  )
+  request("nvim_input", { "<Esc>" })
+  expect_status("[10/10]", "Search count missed an Insert mode edit")
+  request("nvim_command", { "undo" })
+  expect_status("[9/9]", "Search count missed an undo")
+  -- An edit away from the cursor changes the count without moving it.
+  lua("vim.api.nvim_buf_set_lines(0, 0, 1, false, { 'sample row 17' })")
+  expect_status("[10/10]", "Search count missed an edit away from the cursor")
+  request("nvim_command", { "undo | normal! G" })
+  expect_status("[9/9]", "Search count missed a second undo")
+
+  request("nvim_command", { "tabedit " .. temporary .. "/other.txt" })
+  expect_status("[0/2]", "Search count kept another tab's value")
+  request("nvim_input", { "G" })
+  expect_status("[2/2]", "Search count ignored the new buffer")
+  request("nvim_input", { "*" })
+  expect_status("[1/1]", "Search count missed a pattern change without a jump")
+  request("nvim_input", { "<Esc>" })
+  expect_status("[1/1]", "Search count survived :nohlsearch", false)
+  request("nvim_input", { "qq" })
+  expect_status("recording @q", "Recording did not appear")
+  request("nvim_input", { "q" })
+  expect_status("recording @q", "Recording survived its end", false)
+
+  request("nvim_command", { "edit " .. temporary .. "/case.txt" })
+  request("nvim_input", { "j*" })
+  expect_status("[1/4]", "Search count ignored the case rules of *")
+  request("nvim_input", { ":3s/Sub/Sub/<CR>" })
+  expect_status("[1/1]", "Search count ignored the :substitute pattern")
+  request("nvim_command", { "undo" })
+
+  lua([=[
+    vim.cmd("enew | setlocal buftype=nofile bufhidden=wipe")
+    local lines = {}
+    for i = 1, 40000 do
+      lines[i] = "local value_" .. i .. " = compute(alpha, beta, gamma) -- regular source text"
+    end
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
+    vim.fn.setreg("/", [[compute(.*zeta]])
+    vim.cmd("let v:hlsearch = 1")
+  ]=])
+  -- Filling the buffer delays the first frame, so wait for the value rather than a native redraw.
+  wait(function()
+    return frames[#frames].status:find("[?/??]", 1, true) ~= nil
+  end, "Slow search did not report an incomplete count")
+  local elapsed = lua([[
+    local start = vim.uv.hrtime()
+    for _ = 1, 20 do
+      vim.cmd("normal! j")
+      vim.cmd.redrawstatus()
+    end
+    return (vim.uv.hrtime() - start) / 1e6
+  ]])
+  assert(elapsed < 300, "Cursor moves rescanned the buffer: " .. elapsed .. " ms")
+  request("nvim_command", { "nohlsearch" })
+  request("nvim_command", { "tabclose | normal! 0" })
+  settle()
+  status_matches(500, 1, "Bot")
+
+  request("nvim_command", { "vsplit" })
+  settle()
+  assert(frames[#frames].status:find("scroll.txt", 1, true), "Split hid components of the global statusline")
+  status_matches(500, 1, "Bot")
+  local wide = frames[#frames].status
+
+  lua([[
+    local buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_open_win(buf, true, { relative = "editor", row = 1, col = 1, width = 20, height = 3 })
+  ]])
+  assert(lua("return vim.api.nvim_win_get_config(0).relative ~= ''"), "Float did not take focus")
+  vim.wait(200)
+  assert(frames[#frames].status == wide, "Focused float replaced the statusline: " .. frames[#frames].status)
+  request("nvim_command", { "close" })
+
+  request("nvim_command", { "split | vsplit" })
+  settle()
+  lua([[
+    local lualine = require("lualine")
+    local statusline = lualine.statusline
+    _G.statusline_renders = 0
+    lualine.statusline = function(...)
+      _G.statusline_renders = _G.statusline_renders + 1
+      return statusline(...)
+    end
+  ]])
+  vim.wait(100)
+  local windows = lua("_G.statusline_renders = 0; return #vim.api.nvim_tabpage_list_wins(0)")
+  request("nvim_input", { "i" })
+  vim.wait(100)
+  local renders = lua("return _G.statusline_renders")
+  -- One render per event, plus at most one timer refresh; the tabpage scope renders every window.
+  assert(renders >= 1, "A mode change did not render the statusline")
+  assert(renders < windows, "A mode change rendered the statusline for every window: " .. renders)
+  request("nvim_input", { "<Esc>" })
+  request("nvim_command", { "only" })
+  settle()
+
+  -- A hidden search count must not keep redrawing the statusline.
+  request("nvim_ui_try_resize", { 80, 40 })
+  request("nvim_input", { "/row 3<CR>" })
+  assert(idle_frames() <= 2, "Narrow statusline redrew in a loop")
+  request("nvim_command", { "nohlsearch" })
+  assert(idle_frames() <= 2, "Narrow statusline redrew in a loop after :nohlsearch")
+  request("nvim_ui_try_resize", { 120, 40 })
+  request("nvim_input", { "/row 4<CR>" })
+
   request("nvim_command", { "Dashboard" })
   assert(lua("return vim.o.laststatus") == 0, "Dashboard revealed the statusline")
+  assert(idle_frames() <= 2, "Dashboard redrew in a loop")
+  request("nvim_command", { "nohlsearch" })
+  assert(idle_frames() <= 2, "Dashboard redrew in a loop after :nohlsearch")
   request("nvim_command", { "enew" })
   assert(lua("return vim.o.laststatus") == 3, "Dashboard did not restore the statusline")
+
+  -- The search count keeps working after the config is reloaded with :source.
+  request("nvim_command", { "source " .. root .. "/lua/configs/lualine.lua" })
+  request("nvim_command", { "edit " .. temporary .. "/other.txt" })
+  request("nvim_input", { "/row<CR>" })
+  expect_status("[1/2]", "Search count broke after reloading the config")
+  request("nvim_input", { "<Esc>" })
+  expect_status("[1/2]", "Search count survived :nohlsearch after reloading the config", false)
+
+  -- Gitsigns skips files longer than its max_file_length, which still belong to the working directory repo.
+  local repo, branch = temporary .. "/repo-" .. mode, "lualine-branch"
+  local git = { "git", "-C", repo, "-c", "user.name=test", "-c", "user.email=test@example.invalid" }
+  vim.list_extend(git, { "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null" })
+  vim.fn.mkdir(repo)
+  assert(vim.system(vim.list_extend(vim.deepcopy(git), { "init", "-q", "-b", branch })):wait().code == 0)
+  assert(
+    vim.system(vim.list_extend(vim.deepcopy(git), { "commit", "-q", "--allow-empty", "-m", "init" })):wait().code == 0
+  )
+  local long = {}
+  for i = 1, 40001 do
+    long[i] = "line " .. i
+  end
+  vim.fn.writefile(long, repo .. "/long.txt")
+  request("nvim_command", { "cd " .. repo })
+  for _ = 1, 200 do
+    if lua("return vim.g.gitsigns_head") == branch then
+      break
+    end
+    vim.wait(50)
+  end
+  assert(lua("return vim.g.gitsigns_head") == branch, "Gitsigns did not report the working directory branch")
+  vim.wait(300)
+  assert(not frames[#frames].status:find(branch, 1, true), "A file outside the working directory showed its branch")
+  request("nvim_command", { "edit " .. repo .. "/long.txt" })
+  wait(function()
+    return frames[#frames].status:find(branch .. " ", 1, true) ~= nil
+  end, "A file skipped by Gitsigns hid the branch")
 
   vim.fn.chansend(child, vim.mpack.encode({ 2, "nvim_command", { "qa!" } }))
   wait(function()
@@ -265,7 +444,11 @@ local function check(mode)
   end, "Neovim did not exit")
   assert(exit_code == 0)
   child = nil
-  print("Lualine UI passed (" .. mode .. "): first frame, native position/progress, Unicode, scroll, splits and floats")
+  print(
+    "Lualine UI passed ("
+      .. mode
+      .. "): first frame, native position/progress, Unicode, scroll, search, recording, splits and floats"
+  )
 end
 
 local ok, err = xpcall(function()

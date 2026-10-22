@@ -8,6 +8,7 @@ opt.relativenumber = true -- Show relative line numbers for easy motion
 opt.numberwidth = 3 -- Minimum width of the number column
 opt.cursorlineopt = "number" -- Highlight only the line number, not the whole line
 opt.scrolloff = 8 -- Keep at least 8 lines visible above/below cursor
+-- opt.scrolloffpad = 8 -- Enable after upgrading to Neovim 0.13: keep scrolloff at end of file
 opt.sidescrolloff = 8 -- Keep at least 8 columns visible left/right of cursor
 opt.colorcolumn = "120" -- Visual guide at column 120
 opt.signcolumn = "yes" -- Always show the sign column (for git/diagnostics)
@@ -84,7 +85,7 @@ opt.undodir = vim.fn.stdpath("data") .. "/undodir" -- Directory to store undo fi
 opt.undolevels = 10000 -- Maximum number of undo levels
 
 opt.completeopt = "menuone,noselect" -- Completion menu behavior (managed by blink.cmp)
-opt.shortmess:append("csI") -- Suppress 'match 1 of 2' messages during completion
+opt.shortmess:append("csIS") -- Suppress completion and search count messages; lualine shows the count
 opt.autocomplete = false -- Disable native autocomplete; blink.cmp handles completion
 opt.wildmenu = true -- Enhanced tab-completion menu in command line
 opt.wildmode = "list:longest" -- Command-line completion: list matches & complete longest common
@@ -109,7 +110,8 @@ opt.confirm = true -- Ask for confirmation when quitting with unsaved changes
 opt.grepprg = "rg --vimgrep --no-heading --smart-case" -- Use ripgrep for :grep
 opt.grepformat = "%f:%l:%c:%m" -- Parse ripgrep output into quickfix format
 
-opt.diffopt:append("linematch:40") -- Smarter inline diff alignment (Neovim 0.11+)
+local diffopt = opt.diffopt --[[@as vim.Option]]
+diffopt:append("linematch:40") -- Smarter inline diff alignment (Neovim 0.11+)
 opt.conceallevel = 2 -- Hide markdown markup, links, etc. in supported filetypes
 
 opt.modeline = false -- Ignore vim: directives in files (security hardening)

@@ -39,7 +39,7 @@ noice.setup({
     view_error = "mini",
     view_warn = "mini",
     view_history = "messages",
-    view_search = "mini",
+    view_search = false,
   },
 
   popupmenu = {
@@ -102,10 +102,6 @@ noice.setup({
   },
 
   routes = {
-    {
-      opts = { skip = true },
-      filter = { event = "msg_show", kind = "search_count" },
-    },
     {
       opts = { skip = true },
       filter = { event = "msg_show", find = "search hit" },

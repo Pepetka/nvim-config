@@ -26,6 +26,7 @@ local picker_buffer, marker_buffer, unlisted_buffer
 local host = require("configs.lualine")
 local original_setup = host.setup
 local host_setups, changes = 0, 0
+---@diagnostic disable-next-line: duplicate-set-field
 host.setup = function(...)
   host_setups = host_setups + 1
   return original_setup(...)
@@ -37,7 +38,7 @@ vim.api.nvim_create_autocmd("ColorScheme", {
     changes = changes + 1
   end,
 })
-local root_autocmds = vim.api.nvim_get_autocmds({ group = "LualineGitRootCache" })
+local refresh_autocmds = vim.api.nvim_get_autocmds({ group = "LualineRefresh" })
 
 local function publish(mode)
   local file = assert(io.open(mode_file .. ".next", "w"))
@@ -98,7 +99,7 @@ local ok, err = xpcall(function()
   vim.api.nvim_buf_set_lines(unlisted_buffer, 0, -1, false, { 'local color = "#fedcba"' })
   vim.api.nvim_win_set_buf(0, unlisted_buffer)
   vim.bo[unlisted_buffer].filetype = "lua"
-  color_markers.setup()
+  color_markers.setup({})
   expect_markers(unlisted_buffer, "#fedcba")
   vim.api.nvim_win_set_buf(0, marker_buffer)
   tree.tree.open({ focus = false })
@@ -134,8 +135,8 @@ local ok, err = xpcall(function()
   end
   assert(host_setups == 0, "Theme rebuilt the host lualine configuration")
   assert(
-    vim.deep_equal(root_autocmds, vim.api.nvim_get_autocmds({ group = "LualineGitRootCache" })),
-    "Theme recreated Git cache handlers"
+    vim.deep_equal(refresh_autocmds, vim.api.nvim_get_autocmds({ group = "LualineRefresh" })),
+    "Theme recreated lualine refresh handlers"
   )
 
   color_markers.turnOff()
