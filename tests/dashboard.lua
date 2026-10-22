@@ -15,6 +15,7 @@ local original_season = content.season
 -- The historical snapshots are nonseasonal; calendar behavior is tested below.
 ---@param date DashboardCalendarDate
 ---@return SeasonalInfo?
+---@diagnostic disable-next-line: duplicate-set-field
 content.season = function(date)
   return nil
 end

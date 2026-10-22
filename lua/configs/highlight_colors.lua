@@ -45,6 +45,6 @@ highlight_colors.setup({
 -- including unlisted previews; turnOff()/turnOn() only visit listed buffers.
 theme_highlights.on_refresh("highlight_colors", function()
   if highlight_colors.is_active() then
-    highlight_colors.setup()
+    highlight_colors.setup({})
   end
 end)

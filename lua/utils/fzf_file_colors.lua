@@ -4,11 +4,11 @@ local utils = require("fzf-lua.utils")
 -- Keep the icon's hue using the six terminal colors rather than its RGB value.
 -- Neutral icons and directories use ANSI bright black (palette index 8).
 local function icon_color(hex)
-  local r, g, b = (hex or ""):match("^#(%x%x)(%x%x)(%x%x)$")
-  if not r then
+  local red, green, blue = (hex or ""):match("^#(%x%x)(%x%x)(%x%x)$")
+  if not red then
     return "grey"
   end
-  r, g, b = tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
+  local r, g, b = tonumber(red, 16), tonumber(green, 16), tonumber(blue, 16)
   local high, low = math.max(r, g, b), math.min(r, g, b)
   local delta = high - low
   if delta == 0 or delta < high * 0.15 then

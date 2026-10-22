@@ -77,9 +77,14 @@ local baseline
 ---@type CssInJsParserInfo?
 local applied
 
+---@return { install_info?: CssInJsParserInfo }
+local function styled_parser()
+  return require("nvim-treesitter.parsers").styled --[[@as { install_info?: CssInJsParserInfo }]]
+end
+
 ---@return nil
 local function apply_override()
-  local parser = require("nvim-treesitter.parsers").styled
+  local parser = styled_parser()
   local newest = owners[#owners]
   if newest then
     parser.install_info = copy(newest)
@@ -114,7 +119,7 @@ function M.override(group_name)
       end
     end
     owned = nil
-    local parser = require("nvim-treesitter.parsers").styled
+    local parser = styled_parser()
     if vim.deep_equal(parser.install_info, applied) then
       if #owners > 0 then
         apply_override()
@@ -129,7 +134,7 @@ function M.override(group_name)
   ---@param info CssInJsParserInfo
   function integration.setup(info)
     integration.teardown()
-    local parser = require("nvim-treesitter.parsers").styled
+    local parser = styled_parser()
     if #owners == 0 or not vim.deep_equal(parser.install_info, applied) then
       baseline = copy(parser.install_info)
     end

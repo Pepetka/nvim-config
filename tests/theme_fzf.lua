@@ -13,13 +13,14 @@ return function()
   local output
   local colored_files = false
 
+  ---@diagnostic disable-next-line: duplicate-set-field
   core.fzf_exec = function(contents, opts)
     -- Read the actual input pipe, including fn_transform, without launching fzf.
     local command = shell.stringify_mt(contents, opts) or shell.stringify(contents, opts)
     if opts.pipe_cmd then
       command = "(" .. command .. ") | " .. vim.fn.shellescape(opts.fzf_bin) .. " --filter='' --ansi"
     end
-    local finished, code
+    local finished, code = false, nil
     output = nil
     job = vim.fn.jobstart(command, {
       stdout_buffered = true,
@@ -61,12 +62,14 @@ return function()
         return true
       end,
     }
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.lsp.get_clients = function()
       return { client }
     end
     vim.lsp.get_client_by_id = function()
       return client
     end
+    ---@diagnostic disable-next-line: duplicate-set-field
     vim.lsp.buf_request_sync = function(_, method)
       local symbol = { name = "sample", kind = vim.lsp.protocol.SymbolKind.Function }
       if method == "textDocument/documentSymbol" then
@@ -152,7 +155,7 @@ return function()
       end
       picker_buffer = win.fzf_bufnr
       local text = table.concat(vim.api.nvim_buf_get_lines(picker_buffer, 0, -1, false), "\n")
-      return text:find("Theme error", 1, true) and text:find("E123", 1, true)
+      return text:find("Theme error", 1, true) ~= nil and text:find("E123", 1, true) ~= nil
     end
     assert(vim.wait(3000, diagnostic_visible, 10), "Interactive diagnostics lost the message or code")
     local original_buffer = picker_buffer

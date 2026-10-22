@@ -46,6 +46,7 @@ local ok, err = xpcall(function()
   local original_snapshot = colors.get()
   assert(select("#", colors.get()) == 1, "Palette getter leaked an extra provider argument")
   local palette_setup = require("tokyonight.colors").setup
+  ---@diagnostic disable-next-line: duplicate-set-field
   require("tokyonight.colors").setup = function()
     error("Reading the color snapshot must not reconstruct TokyoNight")
   end

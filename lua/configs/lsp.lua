@@ -74,6 +74,7 @@ vim.api.nvim_create_autocmd("BufWritePost", {
       end
       for _, root in ipairs(roots) do
         if vim.fs.relpath(root, path) then
+          ---@diagnostic disable-next-line: param-type-mismatch -- Svelte protocol extension.
           client:notify("$/onDidChangeTsOrJsFile", { uri = uri })
           break
         end

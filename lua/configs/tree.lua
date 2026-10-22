@@ -165,7 +165,7 @@ local function vim_like_navigation(bufnr)
       return
     end
     nvimtree_api.node.open.edit()
-    if node.nodes == nil then
+    if rawget(node, "nodes") == nil then
       nvimtree_api.tree.close()
     end
   end

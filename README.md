@@ -446,6 +446,12 @@ Its footer callback keeps its closure in memory and supports reopening `:Dashboa
 Layout snapshots and seasonal content are checked with `tests/dashboard.lua`; custom blocks use the same
 document contract as built-in text and menus. Palette updates never invoke content providers.
 
+Check LuaLS diagnostics across the configuration, local plugins and tests with installed plugin types:
+
+```sh
+NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/types_check.lua
+```
+
 Run the focused theme regression suite with installed plugins:
 
 ```sh
