@@ -87,9 +87,6 @@ local function check(mode)
     "-i",
     "NONE",
     "-n",
-    "--cmd",
-    -- Keep the rendering test independent of the external AI server download.
-    "lua package.loaded['configs.windsurf'] = true",
     temporary .. "/scroll.txt",
   }, {
     env = {
@@ -163,7 +160,7 @@ local function check(mode)
 
   local function settle()
     local before = #frames
-    request("nvim_command", { "redraw" })
+    request("nvim_command", { "redraw!" })
     wait(function()
       return #frames > before
     end, "UI did not redraw")

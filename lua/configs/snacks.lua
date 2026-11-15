@@ -122,6 +122,8 @@ snacks.setup({
   },
 })
 
+require("configs.snacks_image")
+
 local durations = {
   [vim.log.levels.ERROR] = 10000,
   [vim.log.levels.WARN] = 7000,

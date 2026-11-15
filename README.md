@@ -291,7 +291,6 @@ a stylesheet with `@import "tailwindcss"`; no Tailwind or PostCSS config file is
 - **Scope-aware buffers** with `scope.nvim` so buffer lists stay per tab
 - **Image previews** under the cursor via `snacks.nvim`
 - **Live preview** for Markdown and web files
-- **AI code completion** with `windsurf.nvim`
 - **Interactive cheatsheet** (`<leader>ch`) to browse every keymap grouped by mode
 - **Fast motion** with `leap.nvim` (press `s` + two characters)
 - **Seamless tmux navigation** with `vim-tmux-navigator`
@@ -393,7 +392,6 @@ For the full list, see `lua/mappings.lua` and `lua/configs/*.lua`.
 - [ ] Verify that the lsp and treesitter parsers were installed automatically (run `:LspInfo` and `:checkhealth nvim-treesitter`).
 - [ ] On macOS run `theme install` from the matching dotfiles; use `theme auto`, `theme dark` or `theme light`. Authorize the Ghostty helper once with `theme authorize` for live terminal reload.
 - [ ] Run `:checkhealth` and fix any missing optional dependencies.
-- [ ] If you use AI completion, authenticate Codeium so `windsurf.nvim` can read `~/.codeium/config.json`.
 - [ ] Press `<leader>ch` to open the cheatsheet and explore keymaps by mode.
 
 ## Updating

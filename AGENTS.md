@@ -14,9 +14,9 @@ Personal Neovim configuration (Lua, Neovim 0.12+, `vim.pack`). Targets the live 
 - **Colorscheme:** `tokyonight.nvim` (transparent, follows the dotfiles theme engine via `${XDG_CONFIG_HOME:-~/.config}/theme/mode`; supports auto/dark/light policy upstream; terminal buffers inherit host ANSI colors)
 - **Formatter:** `conform.nvim` (prefers Oxc when Oxc configs exist, else `eslint_d`/`prettierd`)
 - **Linter:** `nvim-lint` (prefers `oxlint` when Oxc lint config exists, else `eslint_d`)
-- **AI completion:** `windsurf.nvim` (active); `minuet-ai.nvim` and `neocodeium` configs are present but disabled
 - **DAP:** `nvim-dap` + `nvim-dap-view` for JS/TS via `js-debug-adapter` and Go via `delve`
-- **Extras:** `leap.nvim`, `vim-tmux-navigator`, `nvim-bqf`, `nvim-hlslens`, `todo-comments.nvim`, `mini.ai`, `mini.cursorword`
+- **Extras:** `leap.nvim`, `vim-tmux-navigator`, `nvim-bqf`, `todo-comments.nvim`, `mini.ai`, `mini.cursorword`
+- **Scrollbar:** `nvim-scrollbar` v2 (`refactor/v2` until release), native search, screen-line geometry, no minimap
 
 ## Load Order
 
@@ -35,6 +35,7 @@ Plugin groups in `lua/plugins/init.lua` load in order: `shared` → `core` → `
 - `lua/configs/*.lua` — per-plugin setup
 - `lsp/*.lua` — server configs loaded by `vim.lsp.config` in `lua/configs/lsp.lua`
 - `lua/utils/oxc_config.lua` — Oxc formatter/linter config detection
+- `lua/configs/snacks_image.lua` — temporary fixes for private `snacks.image` lifecycle bugs
 - `lua/configs/theme.lua` — TokyoNight setup and system mode synchronization
 - `lua/utils/colors.lua` — explicit active palette snapshot and semantic color aliases
 - `lua/utils/theme_highlights.lua` — personal highlight definitions and ordered UI refreshes
@@ -64,10 +65,13 @@ No build step. Package-info has focused Node and headless Neovim tests
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme.lua` — theme/watcher/ANSI regression tests
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/dashboard.lua` — dashboard layout snapshots and seasonal content
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u ./init.lua -i NONE -n -c 'lua dofile("tests/theme_ui.lua")'` — full theme integration
+- `NVIM_LOG_FILE=/dev/null nvim --headless -u ./init.lua -i NONE -n -c 'lua dofile("tests/scrollbar.lua")'` — native scrollbar search, Git marks, diagnostics, splits, folds, fold-column clicks and themes
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/theme_startup.lua` — first dashboard frame, theme changes, resize and reopen with a real RPC UI
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/lualine.lua` — statusline position/progress, search count,
   recording, splits, floats and per-event renders with a real RPC UI
 - `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/lualine_startup.lua` — native TUI startup without a black band
+- `NVIM_LOG_FILE=/dev/null nvim --headless -u NONE -i NONE -n -l tests/image.lua` — image buffers, fzf previews and
+  Kitty placements in a native TUI; requires ImageMagick and fzf
 - `stylua --check .` — verify formatting
 - `stylua .` — apply formatting
 - `:source %` (`<leader>rs`) — reload current file
@@ -163,7 +167,6 @@ Triggers: `BufWritePost`, `BufReadPost`, `FileType`, `InsertLeave`, `TextChanged
 - `<leader>ui` — toggle inlay hints (globally)
 - `<leader>uc` — toggle markup and JSON quote conceal globally in regular windows
 - DAP: `<leader>dc`, `<leader>db`/`dB`, `<leader>do`/`di`/`dO`, `<leader>dv`, `<leader>dw`
-- Insert AI: `<A-g>`, `<A-w>`, `<A-l>`, `<A-j>`/`<A-k>`, `<A-c>` (`windsurf.nvim`)
 
 For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
 
@@ -201,6 +204,11 @@ For the full mapping list see `lua/mappings.lua` and `lua/configs/*.lua`.
   lower priorities run first. Definitions must not perform plugin setup, UI changes or redraws.
   `utils.colors` reads the palette snapshot published by TokyoNight; do not rebuild palettes in consumers.
   Self-contained local plugins should handle `ColorScheme` with their own autocommand.
+- After updating `snacks.nvim` or `fzf-lua`, run `tests/image.lua`: `lua/configs/snacks_image.lua` patches private
+  methods, and its header names the upstream PRs that replace it.
+- After updating `nvim-scrollbar`, run `tests/scrollbar.lua` and the theme integration tests. Its host config
+  temporarily clears the v2 screen-line cache after fold commands and fold-column clicks; remove this when upstream
+  handles fold changes.
 - Run `stylua .` before committing Lua changes.
 - Test changes inside Neovim. For package-info, also run the Node built-in tests described in its plugin README.
 - For CSS-in-JS, stable-folds and cheatsheet, run the headless tests described in each local plugin README.

@@ -4,7 +4,7 @@ add({
   "https://github.com/nvim-lualine/lualine.nvim",
   "https://github.com/brenoprata10/nvim-highlight-colors",
   "https://github.com/folke/noice.nvim",
-  "https://github.com/petertriho/nvim-scrollbar",
+  { src = "https://github.com/petertriho/nvim-scrollbar", version = "refactor/v2" },
   "https://github.com/folke/snacks.nvim",
 })
 

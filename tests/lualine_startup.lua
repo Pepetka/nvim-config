@@ -18,8 +18,6 @@ local function check(mode)
     "-i",
     "NONE",
     "-n",
-    "--cmd",
-    "lua package.loaded['configs.windsurf'] = true",
     temporary .. "/startup.txt",
   }, {
     term = true,
