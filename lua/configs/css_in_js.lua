@@ -13,7 +13,7 @@ local options = {
   -- Use the forked styled parser until the upstream fix is merged.
   styled_parser = {
     url = "https://github.com/Pepetka/tree-sitter-styled",
-    revision = "e2bfd21812dadd0d7a84dfc878c9151f61295944",
+    revision = "a4f6cc5d1a2d1dd72a0d2265a29801e0e30c7f5d",
     files = { "src/parser.c", "src/scanner.c" },
   },
 }
